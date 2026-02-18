@@ -1,0 +1,110 @@
+{% extends "base.html" %} {% block title %}Seleccionar Empresa - Aspeia
+Finance{% endblock %} {% block content %}
+<div class="min-h-screen flex items-center justify-center p-4">
+  <div class="card w-full max-w-xl bg-base-100 shadow-2xl">
+    <div class="card-body">
+      <!-- Header -->
+      <div class="text-center mb-6">
+        <h1
+          class="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent"
+        >
+          Selecciona una Empresa
+        </h1>
+        <p class="text-base-content/60 mt-2">
+          Elige la empresa con la que deseas trabajar
+        </p>
+      </div>
+
+      <!-- Companies List -->
+      {% if membresias %}
+      <div class="space-y-3">
+        {% for membresia in membresias %}
+        <a
+          href="{% url 'companies:set_tenant' membresia.empresa.id %}"
+          class="flex items-center gap-4 p-4 rounded-xl bg-base-200 hover:bg-primary/10 border border-base-300 hover:border-primary transition-all group"
+          hx-boost="false"
+        >
+          <!-- Company Avatar -->
+          <div class="avatar placeholder">
+            <div
+              class="bg-gradient-to-br from-primary to-secondary text-primary-content w-14 rounded-xl"
+            >
+              <span class="text-xl font-bold"
+                >{{ membresia.empresa.nombre|slice:":2"|upper }}</span
+              >
+            </div>
+          </div>
+          <!-- Company Info -->
+          <div class="flex-1">
+            <h3
+              class="font-semibold text-lg group-hover:text-primary transition-colors"
+            >
+              {{ membresia.empresa.nombre }}
+            </h3>
+            <p class="text-base-content/60 text-sm">
+              {% if membresia.empresa.rfc %}{{ membresia.empresa.rfc }}{% else
+              %}Sin RFC{% endif %}
+            </p>
+          </div>
+          <!-- Role Badge -->
+          <div
+            class="badge {% if membresia.rol == 'admin' %}badge-warning{% else %}badge-ghost{% endif %}"
+          >
+            {{ membresia.get_rol_display }}
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <!-- No Companies -->
+      <div class="text-center py-12">
+        <div class="text-6xl mb-4">🏢</div>
+        <h3 class="text-xl font-semibold text-base-content/70">Sin empresas</h3>
+        <p class="text-base-content/50 mt-2">
+          No tienes acceso a ninguna empresa aún.
+        </p>
+        <p class="text-base-content/50">
+          Contacta al administrador para que te agregue a una.
+        </p>
+      </div>
+      {% endif %}
+
+      <!-- Create Company Button -->
+      <div class="text-center mt-8 mb-4">
+        <p class="text-base-content/60 mb-2">
+          ¿Quieres gestionar otra organización?
+        </p>
+        <a
+          href="{% url 'companies:crear_empresa' %}"
+          class="btn btn-outline btn-primary gap-2"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 4v16m8-8H4"
+            />
+          </svg>
+          Dar de Alta Nueva Empresa
+        </a>
+      </div>
+
+      <!-- Footer -->
+      <div class="divider"></div>
+      <div class="flex items-center justify-between">
+        <span class="text-base-content/60 text-sm">{{ user.email }}</span>
+        <a href="{% url 'account_logout' %}" class="btn btn-ghost btn-sm">
+          Cerrar Sesión
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

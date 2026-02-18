@@ -1,0 +1,47 @@
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: aspeia_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: aspeia_finance
+      POSTGRES_USER: aspeia
+      POSTGRES_PASSWORD: aspeia_dev_2026
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aspeia -d aspeia_finance"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MailHog (for email testing in development)
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: aspeia_mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
+
+  # Redis (Celery broker)
+  redis:
+    image: redis:7-alpine
+    container_name: aspeia_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:

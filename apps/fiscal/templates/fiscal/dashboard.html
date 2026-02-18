@@ -1,0 +1,239 @@
+{% extends "base.html" %} {% block title %}Configuración Fiscal | {{
+empresa.nombre }}{% endblock %} {% block content %}
+<div
+  class="min-h-screen bg-base-200"
+  x-data="{ modalCSD: false, modalFIEL: false }"
+  @keydown.escape.window="modalCSD = false; modalFIEL = false"
+  @close-modal.window="modalCSD = false; modalFIEL = false"
+>
+  <!-- Navbar -->
+  <div class="navbar bg-base-100 shadow-sm px-8">
+    <div class="flex-1">
+      <a
+        href="{% url 'companies:dashboard' %}"
+        class="btn btn-ghost normal-case text-xl"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="1.5"
+          stroke="currentColor"
+          class="w-6 h-6 mr-2"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
+          />
+        </svg>
+        Regresar al Dashboard
+      </a>
+    </div>
+    <div class="flex-none">
+      <span class="font-bold text-lg">{{ empresa.nombre }}</span>
+    </div>
+  </div>
+
+  <div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-8 text-center sm:text-left">
+      Configuración Fiscal
+    </h1>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <!-- Tarjeta CSD -->
+      <div class="card bg-base-100 shadow-xl border-t-4 border-primary">
+        <div class="card-body">
+          <div class="flex justify-between items-start">
+            <h2 class="card-title text-2xl">
+              Certificado de Sello Digital (CSD)
+            </h2>
+            <div
+              class="badge badge-lg {% if csd %}badge-success{% else %}badge-warning{% endif %}"
+            >
+              {% if csd %}Activo{% else %}Pendiente{% endif %}
+            </div>
+          </div>
+
+          <p class="text-base-content/70 mt-4 mb-2">
+            Necesario para timbrar y cancelar facturas.
+          </p>
+
+          {% if csd %}
+          <div class="bg-base-200 p-4 rounded-lg space-y-2 text-sm mt-4">
+            <div class="flex justify-between">
+              <span class="font-semibold">No. Serie:</span>
+              <span class="font-mono">{{ csd.serial_number }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="font-semibold">Vigencia Inicio:</span>
+              <span>{{ csd.valid_from|date:"d M Y" }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="font-semibold">Vigencia Fin:</span>
+              <span
+                class="{% if csd.is_expired %}text-error font-bold{% endif %}"
+                >{{ csd.valid_to|date:"d M Y" }}</span
+              >
+            </div>
+          </div>
+          {% else %}
+          <div class="alert alert-warning mt-4 text-sm">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="stroke-current shrink-0 h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+            <span>Sin CSD activo. No podrás emitir facturas.</span>
+          </div>
+          {% endif %}
+
+          <div class="card-actions justify-end mt-6">
+            <button @click="modalCSD = true" class="btn btn-primary w-full">
+              {% if csd %}Actualizar CSD{% else %}Subir CSD{% endif %}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tarjeta FIEL -->
+      <div class="card bg-base-100 shadow-xl border-t-4 border-secondary">
+        <div class="card-body">
+          <div class="flex justify-between items-start">
+            <h2 class="card-title text-2xl">e.firma (FIEL)</h2>
+            <div
+              class="badge badge-lg {% if fiel %}badge-success{% else %}badge-warning{% endif %}"
+            >
+              {% if fiel %}Activa{% else %}Pendiente{% endif %}
+            </div>
+          </div>
+
+          <p class="text-base-content/70 mt-4 mb-2">
+            Necesaria para descargas masivas SAT y autenticación.
+          </p>
+
+          {% if fiel %}
+          <div class="bg-base-200 p-4 rounded-lg space-y-2 text-sm mt-4">
+            <div class="flex justify-between">
+              <span class="font-semibold">No. Serie:</span>
+              <span class="font-mono">{{ fiel.serial_number }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="font-semibold">Vigencia Inicio:</span>
+              <span>{{ fiel.valid_from|date:"d M Y" }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="font-semibold">Vigencia Fin:</span>
+              <span
+                class="{% if fiel.is_expired %}text-error font-bold{% endif %}"
+                >{{ fiel.valid_to|date:"d M Y" }}</span
+              >
+            </div>
+          </div>
+          {% else %}
+          <div class="alert alert-warning mt-4 text-sm">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="stroke-current shrink-0 h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+            <span
+              >Sin FIEL activa. Las descargas masivas están
+              deshabilitadas.</span
+            >
+          </div>
+          {% endif %}
+
+          <div class="card-actions justify-end mt-6">
+            <button @click="modalFIEL = true" class="btn btn-secondary w-full">
+              {% if fiel %}Actualizar FIEL{% else %}Subir FIEL{% endif %}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal CSD (Alpine controlled) -->
+  <div
+    x-show="modalCSD"
+    x-transition:enter="transition ease-out duration-200"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition ease-in duration-150"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+    class="modal modal-open"
+    @click.self="modalCSD = false"
+    style="display: none"
+  >
+    <div class="modal-box" @click.stop>
+      <button
+        @click="modalCSD = false"
+        class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
+      >
+        ✕
+      </button>
+      <h3 class="font-bold text-lg mb-4">
+        Subir Certificado de Sello Digital (CSD)
+      </h3>
+      <p class="py-2 text-sm text-base-content/70">
+        Exclusivo para facturación. Sube tus archivos .cer y .key.
+      </p>
+
+      <!-- HTMX Form Container -->
+      <div id="form-csd-container">
+        {% include 'fiscal/partials/_form_csd.html' %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal FIEL (Alpine controlled) -->
+  <div
+    x-show="modalFIEL"
+    x-transition:enter="transition ease-out duration-200"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition ease-in duration-150"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+    class="modal modal-open"
+    @click.self="modalFIEL = false"
+    style="display: none"
+  >
+    <div class="modal-box" @click.stop>
+      <button
+        @click="modalFIEL = false"
+        class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
+      >
+        ✕
+      </button>
+      <h3 class="font-bold text-lg mb-4">Subir e.firma (FIEL)</h3>
+      <p class="py-2 text-sm text-base-content/70">
+        Para trámites y descargas SAT. NO confundir con CSD.
+      </p>
+
+      <!-- HTMX Form Container -->
+      <div id="form-fiel-container">
+        {% include 'fiscal/partials/_form_fiel.html' %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

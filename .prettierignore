@@ -1,0 +1,8 @@
+# Ignore html files
+*.html
+
+# Ignore django templates
+*.pyc
+
+# Ignore django migrations
+__pycache__

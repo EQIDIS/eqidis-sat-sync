@@ -1,0 +1,242 @@
+[
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 1,
+    "fields": {
+      "clave": "G01",
+      "descripcion": "Adquisición de mercancías",
+      "tipo_persona": "ambos",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 2,
+    "fields": {
+      "clave": "G02",
+      "descripcion": "Devoluciones, descuentos o bonificaciones",
+      "tipo_persona": "ambos",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 3,
+    "fields": {
+      "clave": "G03",
+      "descripcion": "Gastos en general",
+      "tipo_persona": "ambos",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 4,
+    "fields": {
+      "clave": "I01",
+      "descripcion": "Construcciones",
+      "tipo_persona": "ambos",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 5,
+    "fields": {
+      "clave": "I02",
+      "descripcion": "Mobiliario y equipo de oficina por inversiones",
+      "tipo_persona": "ambos",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 6,
+    "fields": {
+      "clave": "I03",
+      "descripcion": "Equipo de transporte",
+      "tipo_persona": "ambos",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 7,
+    "fields": {
+      "clave": "I04",
+      "descripcion": "Equipo de cómputo y accesorios",
+      "tipo_persona": "ambos",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 8,
+    "fields": {
+      "clave": "I05",
+      "descripcion": "Dados, troqueles, moldes, matrices y herramental",
+      "tipo_persona": "ambos",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 9,
+    "fields": {
+      "clave": "I06",
+      "descripcion": "Comunicaciones telefónicas",
+      "tipo_persona": "ambos",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 10,
+    "fields": {
+      "clave": "I07",
+      "descripcion": "Comunicaciones satelitales",
+      "tipo_persona": "ambos",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 11,
+    "fields": {
+      "clave": "I08",
+      "descripcion": "Otra maquinaria y equipo",
+      "tipo_persona": "ambos",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 12,
+    "fields": {
+      "clave": "D01",
+      "descripcion": "Honorarios médicos, dentales y gastos hospitalarios",
+      "tipo_persona": "fisica",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 13,
+    "fields": {
+      "clave": "D02",
+      "descripcion": "Gastos médicos por incapacidad o discapacidad",
+      "tipo_persona": "fisica",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 14,
+    "fields": {
+      "clave": "D03",
+      "descripcion": "Gastos funerales",
+      "tipo_persona": "fisica",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 15,
+    "fields": {
+      "clave": "D04",
+      "descripcion": "Donativos",
+      "tipo_persona": "fisica",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 16,
+    "fields": {
+      "clave": "D05",
+      "descripcion": "Intereses reales efectivamente pagados por créditos hipotecarios (casa habitación)",
+      "tipo_persona": "fisica",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 17,
+    "fields": {
+      "clave": "D06",
+      "descripcion": "Aportaciones voluntarias al SAR",
+      "tipo_persona": "fisica",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 18,
+    "fields": {
+      "clave": "D07",
+      "descripcion": "Primas por seguros de gastos médicos",
+      "tipo_persona": "fisica",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 19,
+    "fields": {
+      "clave": "D08",
+      "descripcion": "Gastos de transportación escolar obligatoria",
+      "tipo_persona": "fisica",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 20,
+    "fields": {
+      "clave": "D09",
+      "descripcion": "Depósitos en cuentas para el ahorro, primas que tengan como base planes de pensiones",
+      "tipo_persona": "fisica",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 21,
+    "fields": {
+      "clave": "D10",
+      "descripcion": "Pagos por servicios educativos (colegiaturas)",
+      "tipo_persona": "fisica",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 22,
+    "fields": {
+      "clave": "S01",
+      "descripcion": "Sin efectos fiscales",
+      "tipo_persona": "ambos",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 23,
+    "fields": {
+      "clave": "CP01",
+      "descripcion": "Pagos",
+      "tipo_persona": "ambos",
+      "is_active": true
+    }
+  },
+  {
+    "model": "fiscal.usocfdi",
+    "pk": 24,
+    "fields": {
+      "clave": "CN01",
+      "descripcion": "Nómina",
+      "tipo_persona": "fisica",
+      "is_active": true
+    }
+  }
+]

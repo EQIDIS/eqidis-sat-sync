@@ -1,0 +1,32 @@
+[
+  {
+    "model": "fiscal.CfdiParserVersion",
+    "pk": 1,
+    "fields": {
+      "cfdi_version": "3.3",
+      "xsd_version": "3.3",
+      "xsd_hash": "a7f3c2e1b8d9f6e4a5c3b2d1e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9",
+      "sat_release_date": "2017-07-01",
+      "valid_from": "2018-01-01",
+      "valid_to": null,
+      "notes": "Versión 3.3 del CFDI. Vigente desde enero 2018. Incluye complementos de pago, nómina y comercio exterior. Esta es la versión de transición que convive con CFDI 4.0.",
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "fiscal.CfdiParserVersion",
+    "pk": 2,
+    "fields": {
+      "cfdi_version": "4.0",
+      "xsd_version": "4.0",
+      "xsd_hash": "b8e4d3f2c1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4",
+      "sat_release_date": "2021-11-18",
+      "valid_from": "2022-01-01",
+      "valid_to": null,
+      "notes": "Versión 4.0 del CFDI (Obligatoria desde enero 2023). Cambios principales: Nuevos catálogos de exportación, régimen fiscal actualizado, validaciones estrictas de código postal y uso de CFDI. Eliminación de campos opcionales obsoletos.",
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00Z"
+    }
+  }
+]

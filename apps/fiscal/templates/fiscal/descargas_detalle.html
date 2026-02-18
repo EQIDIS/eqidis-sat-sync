@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}Detalle Descarga - {{ current_empresa.nombre }}{% endblock %}
+
+{% block content %}
+<main class="container mx-auto px-4 py-8">
+    <!-- Breadcrumb -->
+    <div class="text-sm breadcrumbs mb-6">
+        <ul>
+            <li><a href="{% url 'companies:dashboard' %}">Inicio</a></li>
+            <li><a href="{% url 'fiscal:descargas' %}">Descargas SAT</a></li>
+            <li>Solicitud #{{ solicitud.id }}</li>
+        </ul>
+    </div>
+
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+        <div>
+            <h1 class="text-2xl font-bold">
+                Solicitud de Descarga #{{ solicitud.id }}
+            </h1>
+            <p class="text-base-content/70 mt-1">
+                {{ solicitud.fecha_inicio|date:"d/m/Y" }} - {{ solicitud.fecha_fin|date:"d/m/Y" }}
+                <span class="badge badge-sm ml-2">
+                    {% if solicitud.tipo == 'emitidos' %}Emitidos{% else %}Recibidos{% endif %}
+                </span>
+            </p>
+        </div>
+        <a href="{% url 'fiscal:descargas' %}" class="btn btn-ghost mt-4 md:mt-0">
+            ← Volver
+        </a>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats stats-vertical lg:stats-horizontal shadow w-full mb-8 bg-base-100">
+        <div class="stat">
+            <div class="stat-title">Total CFDIs</div>
+            <div class="stat-value text-primary">{{ total_cfdis }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-title">Ingresos (I)</div>
+            <div class="stat-value text-success">{{ ingresos }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-title">Egresos (E)</div>
+            <div class="stat-value text-error">{{ egresos }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-title">Pagos (P)</div>
+            <div class="stat-value text-info">{{ pagos }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-title">Traslados (T)</div>
+            <div class="stat-value text-warning">{{ traslados }}</div>
+        </div>
+    </div>
+
+    <!-- Tabla de CFDIs -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <!-- Header con controles de paginación -->
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-4">
+                <div class="flex items-center gap-3">
+                    <h2 class="card-title m-0">CFDIs Descargados</h2>
+                    
+                    <!-- Botón Validar Todos (HTMX) -->
+                    <button 
+                        class="btn btn-primary btn-sm"
+                        hx-post="{% url 'fiscal:validar_todos' solicitud.id %}"
+                        hx-target="#cfdi-table-body"
+                        hx-swap="innerHTML"
+                        hx-indicator="#validar-todos-loading"
+                        hx-disabled-elt="this"
+                        title="Validar todos los CFDIs con el SAT"
+                    >
+                        <span id="validar-todos-loading" class="loading loading-spinner loading-sm htmx-indicator"></span>
+                        <span class="htmx-hide-on-request">✓ Validar Todos</span>
+                    </button>
+                </div>
+                
+                <!-- Selector de tamaño de página -->
+                <div class="flex items-center gap-2">
+                    <span class="text-sm text-base-content/70">Mostrar:</span>
+                    <select 
+                        class="select select-bordered select-sm w-24"
+                        onchange="window.location.href='?page_size=' + this.value"
+                    >
+                        {% for size in allowed_page_sizes %}
+                        <option value="{{ size }}" {% if size == page_size %}selected{% endif %}>{{ size }}</option>
+                        {% endfor %}
+                    </select>
+                    <span class="text-sm text-base-content/70">por página</span>
+                </div>
+            </div>
+            
+            
+            {% if cfdis %}
+            <div class="overflow-x-auto">
+                <table class="table table-zebra table-sm">
+                    <thead>
+                        <tr>
+                            <th>UUID</th>
+                            <th>Tipo</th>
+                            <th>Emisor</th>
+                            <th>Receptor</th>
+                            <th>Total</th>
+                            <th>Fecha</th>
+                            <th>Estado</th>
+                            <th>Cancelable</th>
+                            <th>Validar</th>
+                            <th>Descargar</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cfdi-table-body">
+                        {% for cfdi in cfdis %}
+                        <tr id="cfdi-row-{{ cfdi.uuid }}">
+                            <td>
+                                <span class="font-mono text-xs" title="{{ cfdi.uuid }}">
+                                    {{ cfdi.uuid|truncatechars:13 }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if cfdi.tipo_cfdi == 'I' %}
+                                <span class="badge badge-success badge-sm">Ingreso</span>
+                                {% elif cfdi.tipo_cfdi == 'E' %}
+                                <span class="badge badge-error badge-sm">Egreso</span>
+                                {% elif cfdi.tipo_cfdi == 'P' %}
+                                <span class="badge badge-info badge-sm">Pago</span>
+                                {% elif cfdi.tipo_cfdi == 'T' %}
+                                <span class="badge badge-warning badge-sm">Traslado</span>
+                                {% else %}
+                                <span class="badge badge-sm">{{ cfdi.tipo_cfdi }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="font-mono text-xs">{{ cfdi.rfc_emisor }}</span>
+                            </td>
+                            <td>
+                                <span class="font-mono text-xs">{{ cfdi.rfc_receptor }}</span>
+                            </td>
+                            <td class="text-right">
+                                <span class="font-mono">${{ cfdi.total|floatformat:2 }}</span>
+                                <span class="text-xs text-base-content/50">{{ cfdi.moneda }}</span>
+                            </td>
+                            <td>
+                                <span class="text-sm">{{ cfdi.fecha_emision|date:"d/m/Y" }}</span>
+                            </td>
+                            <td>
+                                {% if cfdi.estado_sat == 'Vigente' %}
+                                <span class="badge badge-success badge-sm">Vigente</span>
+                                {% elif cfdi.estado_sat == 'Cancelado' %}
+                                <span class="badge badge-error badge-sm">Cancelado</span>
+                                {% else %}
+                                <span class="badge badge-sm">{{ cfdi.estado_sat }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if cfdi.estado_cancelacion %}
+                                    {% if cfdi.estado_cancelacion == 'Cancelable sin aceptación' %}
+                                    <span class="badge badge-warning badge-xs" title="Sin aceptación">Sin acept.</span>
+                                    {% elif cfdi.estado_cancelacion == 'Cancelable con aceptación' %}
+                                    <span class="badge badge-info badge-xs" title="Con aceptación">Con acept.</span>
+                                    {% elif cfdi.estado_cancelacion == 'No cancelable' %}
+                                    <span class="badge badge-error badge-xs">No cancel.</span>
+                                    {% else %}
+                                    <span class="badge badge-ghost badge-xs">{{ cfdi.estado_cancelacion|truncatechars:12 }}</span>
+                                    {% endif %}
+                                {% else %}
+                                <span class="text-base-content/30 text-xs">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <button 
+                                    class="btn btn-ghost btn-xs htmx-validate-btn"
+                                    hx-post="{% url 'fiscal:validar_cfdi' cfdi.uuid %}"
+                                    hx-target="#cfdi-row-{{ cfdi.uuid }}"
+                                    hx-swap="outerHTML"
+                                    hx-indicator="#loading-{{ cfdi.uuid }}"
+                                    title="Validar estado con SAT"
+                                >
+                                    <span id="loading-{{ cfdi.uuid }}" class="loading loading-spinner loading-xs htmx-indicator"></span>
+                                    <span class="htmx-hide-on-request">✓</span>
+                                </button>
+                            </td>
+                            <td>
+                                {% if cfdi.s3_xml_path %}
+                                <a href="{% url 'fiscal:descargar_cfdi' cfdi.uuid %}" target="_blank" class="btn btn-ghost btn-xs">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                    XML
+                                </a>
+                                {% else %}
+                                <span class="text-base-content/30 text-xs">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Paginación -->
+            {% if cfdis.paginator.num_pages > 1 %}
+            <div class="flex flex-col md:flex-row items-center justify-between mt-6 gap-4">
+                <div class="text-sm text-base-content/70">
+                    Mostrando {{ cfdis.start_index }}-{{ cfdis.end_index }} de {{ cfdis.paginator.count }} CFDIs
+                </div>
+                <div class="join">
+                    {% if cfdis.has_previous %}
+                    <a href="?page=1&page_size={{ page_size }}" class="join-item btn btn-sm">«</a>
+                    <a href="?page={{ cfdis.previous_page_number }}&page_size={{ page_size }}" class="join-item btn btn-sm">‹</a>
+                    {% endif %}
+                    
+                    {% for page_num in cfdis.paginator.page_range %}
+                        {% if page_num == cfdis.number %}
+                        <button class="join-item btn btn-sm btn-active">{{ page_num }}</button>
+                        {% elif page_num == 1 or page_num == cfdis.paginator.num_pages or page_num >= cfdis.number|add:"-2" and page_num <= cfdis.number|add:"2" %}
+                        <a href="?page={{ page_num }}&page_size={{ page_size }}" class="join-item btn btn-sm">{{ page_num }}</a>
+                        {% elif page_num == cfdis.number|add:"-3" or page_num == cfdis.number|add:"3" %}
+                        <span class="join-item btn btn-sm btn-disabled">…</span>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if cfdis.has_next %}
+                    <a href="?page={{ cfdis.next_page_number }}&page_size={{ page_size }}" class="join-item btn btn-sm">›</a>
+                    <a href="?page={{ cfdis.paginator.num_pages }}&page_size={{ page_size }}" class="join-item btn btn-sm">»</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            
+            {% else %}
+            <div class="text-center py-12">
+                <p class="text-base-content/60">No se encontraron CFDIs en esta solicitud.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</main>
+{% endblock %}

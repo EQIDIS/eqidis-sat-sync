@@ -1,0 +1,126 @@
+{% extends "base.html" %} {% block title %}Subir Certificado Digital | {{
+empresa.nombre }}{% endblock %} {% block content %}
+<div
+  class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-base-200"
+>
+  <div class="card w-full max-w-2xl bg-base-100 shadow-xl">
+    <div class="card-body">
+      <h2 class="card-title text-2xl font-bold text-center mb-2">
+        Configuración Fiscal
+      </h2>
+      <p class="text-center text-base-content/70 mb-6">
+        Sube los archivos de tu Sello Digital (CSD) o FIEL para habilitar la
+        facturación.
+      </p>
+
+      <div class="alert alert-info shadow-sm mb-6">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          class="stroke-current shrink-0 w-6 h-6"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+          ></path>
+        </svg>
+        <div>
+          <h3 class="font-bold">Seguridad Garantizada</h3>
+          <div class="text-xs">
+            Tu llave privada (.key) y contraseña nunca se almacenan en texto
+            claro. Se usan para validación y luego se cifran.
+          </div>
+        </div>
+      </div>
+
+      <form method="post" enctype="multipart/form-data" class="space-y-4">
+        {% csrf_token %} {% if form.non_field_errors %}
+        <div class="alert alert-error">
+          <ul>
+            {% for error in form.non_field_errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        <!-- Archivo .CER -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold"
+              >Certificado de Seguridad (.cer)</span
+            >
+          </label>
+          {{ form.archivo_cer }} {% if form.archivo_cer.errors %}
+          <label class="label">
+            <span class="label-text-alt text-error"
+              >{{ form.archivo_cer.errors.0 }}</span
+            >
+          </label>
+          {% endif %}
+        </div>
+
+        <!-- Archivo .KEY -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold">Llave Privada (.key)</span>
+          </label>
+          {{ form.archivo_key }} {% if form.archivo_key.errors %}
+          <label class="label">
+            <span class="label-text-alt text-error"
+              >{{ form.archivo_key.errors.0 }}</span
+            >
+          </label>
+          {% endif %}
+        </div>
+
+        <!-- Contraseña -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-semibold"
+              >Contraseña de la Llave Privada</span
+            >
+          </label>
+          {{ form.contrasena }}
+          <label class="label">
+            <span class="label-text-alt text-base-content/50"
+              >{{ form.contrasena.help_text }}</span
+            >
+          </label>
+          {% if form.contrasena.errors %}
+          <label class="label">
+            <span class="label-text-alt text-error"
+              >{{ form.contrasena.errors.0 }}</span
+            >
+          </label>
+          {% endif %}
+        </div>
+
+        <div class="card-actions justify-end mt-8">
+          <a href="{% url 'companies:dashboard' %}" class="btn btn-ghost"
+            >Cancelar</a
+          >
+          <button type="submit" class="btn btn-primary">
+            Validar y Activar
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5 ml-2"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                clip-rule="evenodd"
+              />
+            </svg>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

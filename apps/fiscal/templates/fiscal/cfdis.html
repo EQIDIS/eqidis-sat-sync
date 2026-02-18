@@ -1,0 +1,557 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}CFDIs - {{ current_empresa.nombre }}{% endblock %}
+
+{% block content %}
+<main class="container mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+        <div>
+            <h1 class="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                Comprobantes Fiscales (CFDIs)
+            </h1>
+            <p class="text-base-content/70 mt-1">
+                Vista unificada de todos los CFDIs de {{ empresa.nombre }}
+            </p>
+        </div>
+        <div class="flex gap-2 mt-4 md:mt-0">
+            <!-- Sync Manual -->
+            <button
+                class="btn btn-primary"
+                hx-post="{% url 'fiscal:sync_manual' %}"
+                hx-target="#sync-result"
+                hx-swap="innerHTML"
+                {% if not fiel %}disabled{% endif %}
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Sincronizar Ahora
+            </button>
+            <!-- Reset -->
+            <button
+                class="btn btn-outline btn-error"
+                onclick="document.getElementById('modal_reset').showModal()"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Resultado de Sync -->
+    <div id="sync-result"></div>
+
+    <!-- Alertas de requisitos -->
+    {% if not fiel %}
+    <div class="alert alert-warning mb-6">
+        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+        <div>
+            <h3 class="font-bold">FIEL no configurada</h3>
+            <p>Para descargar CFDIs del SAT necesitas cargar tu e.firma (FIEL).</p>
+        </div>
+        <a href="{% url 'fiscal:dashboard' %}" class="btn btn-sm">Configurar FIEL</a>
+    </div>
+    {% endif %}
+
+    <!-- Stats Cards -->
+    <div id="stats-container" class="stats stats-vertical lg:stats-horizontal shadow w-full mb-6 bg-base-100">
+        <div class="stat">
+            <div class="stat-figure text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            </div>
+            <div class="stat-title">Total CFDIs</div>
+            <div class="stat-value text-primary">{{ stats.total|default:0 }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-figure text-success">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="stat-title">Vigentes</div>
+            <div class="stat-value text-success">{{ stats.vigentes|default:0 }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-figure text-error">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="stat-title">Cancelados</div>
+            <div class="stat-value text-error">{{ stats.cancelados|default:0 }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-figure text-info">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="stat-title">Total Vigente</div>
+            <div class="stat-value text-info text-2xl">${{ stats.total_monto|floatformat:0|intcomma|default:0 }}</div>
+            <div class="stat-desc">MXN</div>
+        </div>
+    </div>
+
+    <!-- Mini stats por tipo -->
+    <div class="flex flex-wrap gap-2 mb-6">
+        <div class="badge badge-lg badge-outline gap-1">
+            <span class="font-bold text-success">I</span> Ingresos: {{ stats.ingresos|default:0 }}
+        </div>
+        <div class="badge badge-lg badge-outline gap-1">
+            <span class="font-bold text-error">E</span> Egresos: {{ stats.egresos|default:0 }}
+        </div>
+        <div class="badge badge-lg badge-outline gap-1">
+            <span class="font-bold text-info">P</span> Pagos: {{ stats.pagos|default:0 }}
+        </div>
+        <div class="badge badge-lg badge-outline gap-1">
+            <span class="font-bold text-warning">T</span> Traslados: {{ stats.traslados|default:0 }}
+        </div>
+    </div>
+
+    <!-- Configuracion de Sync (Collapsible) -->
+    <div class="collapse collapse-arrow bg-base-100 shadow mb-6">
+        <input type="checkbox" />
+        <div class="collapse-title font-medium flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Configuracion de Sincronizacion
+            {% if sync_settings.weekly_sync_enabled %}
+            <span class="badge badge-success badge-sm">Activa</span>
+            {% else %}
+            <span class="badge badge-ghost badge-sm">Inactiva</span>
+            {% endif %}
+        </div>
+        <div class="collapse-content">
+            <form
+                hx-post="{% url 'fiscal:update_weekly_sync_settings' %}"
+                hx-trigger="change"
+                hx-swap="none"
+                class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-2"
+            >
+                {% csrf_token %}
+
+                <!-- Toggle Sync Semanal -->
+                <div class="form-control">
+                    <label class="label cursor-pointer justify-start gap-3">
+                        <input
+                            type="checkbox"
+                            name="weekly_sync_enabled"
+                            class="toggle toggle-primary"
+                            {% if sync_settings.weekly_sync_enabled %}checked{% endif %}
+                        />
+                        <span class="label-text">Sincronizacion Automatica</span>
+                    </label>
+                </div>
+
+                <!-- Toggle Sync Odoo -->
+                <div class="form-control">
+                    <label class="label cursor-pointer justify-start gap-3">
+                        <input
+                            type="checkbox"
+                            name="sync_to_odoo_enabled"
+                            class="toggle toggle-secondary"
+                            {% if sync_settings.sync_to_odoo_enabled %}checked{% endif %}
+                            {% if not odoo_connection %}disabled{% endif %}
+                        />
+                        <span class="label-text">Sincronizar a Odoo</span>
+                        {% if not odoo_connection %}
+                        <span class="badge badge-warning badge-xs">Sin conexion</span>
+                        {% endif %}
+                    </label>
+                </div>
+
+                <!-- Dia de Ejecucion -->
+                <div class="form-control">
+                    <label class="label py-1">
+                        <span class="label-text text-xs">Dia de ejecucion</span>
+                    </label>
+                    <select name="weekly_sync_day" class="select select-bordered select-sm">
+                        <option value="0" {% if sync_settings.weekly_sync_day == 0 %}selected{% endif %}>Lunes</option>
+                        <option value="1" {% if sync_settings.weekly_sync_day == 1 %}selected{% endif %}>Martes</option>
+                        <option value="2" {% if sync_settings.weekly_sync_day == 2 %}selected{% endif %}>Miercoles</option>
+                        <option value="3" {% if sync_settings.weekly_sync_day == 3 %}selected{% endif %}>Jueves</option>
+                        <option value="4" {% if sync_settings.weekly_sync_day == 4 %}selected{% endif %}>Viernes</option>
+                        <option value="5" {% if sync_settings.weekly_sync_day == 5 %}selected{% endif %}>Sabado</option>
+                        <option value="6" {% if sync_settings.weekly_sync_day == 6 %}selected{% endif %}>Domingo</option>
+                    </select>
+                </div>
+
+                <!-- Hora -->
+                <div class="form-control">
+                    <label class="label py-1">
+                        <span class="label-text text-xs">Hora</span>
+                    </label>
+                    <select name="weekly_sync_hour" class="select select-bordered select-sm">
+                        {% for opt in hour_options %}
+                        <option value="{{ opt.value }}" {% if sync_settings.weekly_sync_hour == opt.value %}selected{% endif %}>{{ opt.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Minuto -->
+                <div class="form-control">
+                    <label class="label py-1">
+                        <span class="label-text text-xs">Minuto</span>
+                    </label>
+                    <select name="weekly_sync_minute" class="select select-bordered select-sm">
+                        {% for min in minute_options %}
+                        <option value="{{ min.value }}" {% if sync_settings.weekly_sync_minute == min.value %}selected{% endif %}>{{ min.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Rango de dias -->
+                <div class="form-control">
+                    <label class="label py-1">
+                        <span class="label-text text-xs">Rango a descargar</span>
+                    </label>
+                    <select name="weekly_sync_days_range" class="select select-bordered select-sm">
+                        {% for opt in days_range_options %}
+                        <option value="{{ opt.value }}" {% if sync_settings.weekly_sync_days_range == opt.value %}selected{% endif %}>{{ opt.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Estado -->
+                <div class="form-control col-span-1 md:col-span-2">
+                    <div class="flex flex-wrap gap-4 items-center text-sm text-base-content/70">
+                        {% if sync_settings.last_weekly_sync_at %}
+                        <span>Ultima sync: <strong>{{ sync_settings.last_weekly_sync_at|date:"d/m/Y H:i" }}</strong></span>
+                        {% endif %}
+                        <span>Proxima: <strong>{{ next_execution_day }} a las {{ sync_settings.weekly_sync_hour|stringformat:"02d" }}:{{ sync_settings.weekly_sync_minute|stringformat:"02d" }}</strong></span>
+                        <span>Rango: <strong>{{ sync_fecha_inicio|date:"d/m" }} - {{ sync_fecha_fin|date:"d/m" }}</strong></span>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Solicitudes Recientes -->
+            {% if solicitudes_recientes %}
+            <div class="divider my-4"></div>
+            <h4 class="font-medium text-sm mb-2">Ultimas descargas</h4>
+            <div class="overflow-x-auto">
+                <table class="table table-xs">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Tipo</th>
+                            <th>Rango</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sol in solicitudes_recientes %}
+                        <tr>
+                            <td class="font-mono">{{ sol.created_at|date:"d/m H:i" }}</td>
+                            <td>
+                                {% if sol.tipo == 'emitidos' %}
+                                <span class="badge badge-info badge-xs">Emitidos</span>
+                                {% else %}
+                                <span class="badge badge-success badge-xs">Recibidos</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-xs">{{ sol.fecha_inicio|date:"d/m" }} - {{ sol.fecha_fin|date:"d/m" }}</td>
+                            <td>
+                                {% if sol.status == 'downloaded' %}
+                                <span class="badge badge-success badge-xs">OK</span>
+                                {% elif sol.status == 'failed' %}
+                                <span class="badge badge-error badge-xs">Error</span>
+                                {% else %}
+                                <span class="loading loading-spinner loading-xs"></span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- Panel Odoo (multiempresa: selección de empresa en Odoo) -->
+            <div class="divider my-4"></div>
+            <h4 class="font-medium text-sm mb-2">Odoo</h4>
+            {% if odoo_can_configure %}
+            <div class="form-control mb-3">
+                <label class="label py-1">
+                    <span class="label-text text-xs font-medium">Empresa en Odoo (res.company)</span>
+                </label>
+                <div
+                    hx-get="{% url 'fiscal:odoo_companies_options' %}"
+                    hx-trigger="load"
+                    hx-target="#odoo-company-select"
+                    hx-swap="innerHTML"
+                >
+                    <select
+                        name="odoo_company_id"
+                        id="odoo-company-select"
+                        class="select select-bordered select-sm w-full max-w-md"
+                        hx-post="{% url 'fiscal:odoo_set_company' %}"
+                        hx-trigger="change delay:200ms"
+                        hx-include="this"
+                        hx-target="#odoo-result"
+                        hx-swap="innerHTML"
+                        hx-indicator="#odoo-indicator"
+                    >
+                        <option value="">Cargando empresas…</option>
+                    </select>
+                </div>
+                <p class="text-xs text-base-content/50 mt-1">Selecciona a qué empresa de Odoo se vincula esta empresa de Aspeia. Puedes cambiar de empresa en el selector superior y configurar cada una.</p>
+            </div>
+            {% endif %}
+            {% if odoo_connection %}
+            <div class="flex flex-wrap gap-2 mb-3">
+                <button
+                    type="button"
+                    class="btn btn-outline btn-sm"
+                    hx-post="{% url 'fiscal:odoo_test_connection' %}"
+                    hx-target="#odoo-result"
+                    hx-swap="innerHTML"
+                    hx-indicator="#odoo-indicator"
+                >
+                    Probar conexión
+                </button>
+                <button
+                    type="button"
+                    class="btn btn-outline btn-sm"
+                    hx-post="{% url 'fiscal:odoo_import' %}"
+                    hx-target="#odoo-result"
+                    hx-swap="innerHTML"
+                    hx-indicator="#odoo-indicator"
+                >
+                    Importar desde Odoo
+                </button>
+                <button
+                    type="button"
+                    class="btn btn-outline btn-sm"
+                    hx-post="{% url 'fiscal:odoo_export' %}"
+                    hx-target="#odoo-result"
+                    hx-swap="innerHTML"
+                    hx-indicator="#odoo-indicator"
+                >
+                    Exportar a Odoo
+                </button>
+                <span id="odoo-indicator" class="loading loading-spinner loading-sm htmx-indicator"></span>
+            </div>
+            <div id="odoo-result"></div>
+            <h5 class="font-medium text-xs mt-3 mb-1">Últimas sincronizaciones Odoo</h5>
+            <div
+                id="odoo-logs-container"
+                class="overflow-x-auto max-h-40 overflow-y-auto"
+                hx-get="{% url 'fiscal:sync_semanal_logs' %}?tipo=odoo"
+                hx-trigger="load"
+                hx-swap="innerHTML"
+            >
+                <span class="loading loading-spinner loading-xs"></span>
+            </div>
+            {% elif not odoo_can_configure %}
+            <p class="text-sm text-base-content/60">Configura la conexión Odoo desde el Admin de Django o define ODOO_URL, ODOO_DB, ODOO_USERNAME y ODOO_PASSWORD en variables de entorno.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card bg-base-100 shadow mb-6">
+        <div class="card-body py-4">
+            <form
+                id="filtros-form"
+                hx-get="{% url 'fiscal:cfdis_table' %}"
+                hx-target="#cfdi-table-container"
+                hx-trigger="submit, change from:select delay:300ms"
+                hx-indicator="#search-indicator"
+                class="flex flex-wrap gap-4 items-end"
+            >
+                <!-- Buscar RFC / Nombre -->
+                <div class="form-control flex-1 min-w-[200px]">
+                    <label class="label py-1">
+                        <span class="label-text text-xs">Buscar RFC / Nombre</span>
+                    </label>
+                    <input
+                        type="text"
+                        name="rfc"
+                        value="{{ filtros.rfc }}"
+                        placeholder="RFC o nombre..."
+                        class="input input-bordered input-sm w-full"
+                        hx-get="{% url 'fiscal:cfdis_table' %}"
+                        hx-target="#cfdi-table-container"
+                        hx-trigger="keyup changed delay:500ms"
+                        hx-include="#filtros-form"
+                    >
+                </div>
+
+                <!-- Tipo CFDI -->
+                <div class="form-control w-32">
+                    <label class="label py-1">
+                        <span class="label-text text-xs">Tipo</span>
+                    </label>
+                    <select name="tipo" class="select select-bordered select-sm w-full">
+                        <option value="">Todos</option>
+                        {% for value, label in tipo_choices %}
+                        <option value="{{ value }}" {% if filtros.tipo == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Estado SAT -->
+                <div class="form-control w-36">
+                    <label class="label py-1">
+                        <span class="label-text text-xs">Estado SAT</span>
+                    </label>
+                    <select name="estado_sat" class="select select-bordered select-sm w-full">
+                        <option value="">Todos</option>
+                        {% for value, label in estado_sat_choices %}
+                        <option value="{{ value }}" {% if filtros.estado_sat == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Estado CFDI -->
+                <div class="form-control w-40">
+                    <label class="label py-1">
+                        <span class="label-text text-xs">Estado CFDI</span>
+                    </label>
+                    <select name="cfdi_state" class="select select-bordered select-sm w-full">
+                        <option value="">Todos</option>
+                        {% for value, label in cfdi_state_choices %}
+                        <option value="{{ value }}" {% if filtros.cfdi_state == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Fecha Desde -->
+                <div class="form-control w-36">
+                    <label class="label py-1">
+                        <span class="label-text text-xs">Desde</span>
+                    </label>
+                    <input
+                        type="date"
+                        name="fecha_desde"
+                        value="{{ filtros.fecha_desde }}"
+                        class="input input-bordered input-sm w-full"
+                    >
+                </div>
+
+                <!-- Fecha Hasta -->
+                <div class="form-control w-36">
+                    <label class="label py-1">
+                        <span class="label-text text-xs">Hasta</span>
+                    </label>
+                    <input
+                        type="date"
+                        name="fecha_hasta"
+                        value="{{ filtros.fecha_hasta }}"
+                        class="input input-bordered input-sm w-full"
+                    >
+                </div>
+
+                <!-- Botones -->
+                <div class="flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        Buscar
+                    </button>
+                    <a href="{% url 'fiscal:cfdis' %}" class="btn btn-ghost btn-sm">
+                        Limpiar
+                    </a>
+                    <span id="search-indicator" class="loading loading-spinner loading-sm htmx-indicator"></span>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla de CFDIs -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="card-title">
+                    CFDIs
+                    <span class="badge badge-ghost">{{ cfdis.paginator.count }} resultados</span>
+                </h2>
+
+                <!-- Page size selector -->
+                <div class="flex items-center gap-2">
+                    <span class="text-sm text-base-content/70">Mostrar:</span>
+                    <select
+                        name="page_size"
+                        class="select select-bordered select-xs"
+                        hx-get="{% url 'fiscal:cfdis_table' %}"
+                        hx-target="#cfdi-table-container"
+                        hx-include="#filtros-form"
+                        hx-trigger="change"
+                    >
+                        {% for size in allowed_page_sizes %}
+                        <option value="{{ size }}" {% if page_size == size %}selected{% endif %}>{{ size }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div id="cfdi-table-container">
+                {% include "fiscal/partials/_cfdi_table.html" %}
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Modal Reset -->
+<dialog id="modal_reset" class="modal">
+    <div class="modal-box">
+        <form method="dialog">
+            <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">X</button>
+        </form>
+        <h3 class="font-bold text-lg text-error mb-4">Eliminar Todos los Datos</h3>
+
+        <div class="alert alert-error mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            <div>
+                <p class="font-bold">Esta accion no se puede deshacer</p>
+                <p class="text-sm">Se eliminaran:</p>
+                <ul class="list-disc list-inside text-sm">
+                    <li>Todos los CFDIs ({{ stats.total }})</li>
+                    <li>Historial de descargas SAT</li>
+                    <li>Verificaciones de estado</li>
+                </ul>
+                <p class="text-sm mt-2">La configuracion de sincronizacion se mantendra.</p>
+            </div>
+        </div>
+
+        <form
+            hx-post="{% url 'fiscal:reset_cfdis' %}"
+            hx-target="#reset-result"
+            hx-swap="innerHTML"
+        >
+            {% csrf_token %}
+            <div id="reset-result"></div>
+
+            <div class="form-control mb-4">
+                <label class="label cursor-pointer justify-start gap-3">
+                    <input type="checkbox" name="confirmar" class="checkbox checkbox-error" required>
+                    <span class="label-text">Confirmo que deseo eliminar todos los datos</span>
+                </label>
+            </div>
+
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('modal_reset').close()">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-error">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Eliminar Todo
+                </button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+{% endblock %}

@@ -1,0 +1,85 @@
+# Docker Compose para producción / Dokploy
+# Usar con: docker compose -f docker-compose.prod.yml --env-file .env up -d
+# Asegúrate de tener .env con todas las variables (ver .env.example).
+
+services:
+  web:
+    build: .
+    image: aspeia-accounting:latest
+    container_name: aspeia_web
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - DJANGO_DEBUG=false
+      - POSTGRES_HOST=db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --threads 2 --timeout 120
+
+  celery-worker:
+    image: aspeia-accounting:latest
+    container_name: aspeia_celery_worker
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - DJANGO_DEBUG=false
+      - POSTGRES_HOST=db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    depends_on:
+      - web
+      - redis
+      - db
+    command: celery -A config worker -l info
+
+  celery-beat:
+    image: aspeia-accounting:latest
+    container_name: aspeia_celery_beat
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - DJANGO_DEBUG=false
+      - POSTGRES_HOST=db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    depends_on:
+      - web
+      - redis
+      - db
+    command: celery -A config beat -l info
+
+  db:
+    image: postgres:16-alpine
+    container_name: aspeia_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aspeia_finance}
+      POSTGRES_USER: ${POSTGRES_USER:-aspeia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aspeia} -d ${POSTGRES_DB:-aspeia_finance}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: aspeia_redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:

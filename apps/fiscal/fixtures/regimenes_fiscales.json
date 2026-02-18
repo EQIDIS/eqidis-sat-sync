@@ -1,0 +1,249 @@
+[
+  {
+    "model": "fiscal.regimenfiscal",
+    "pk": 1,
+    "fields": {
+      "clave": "601",
+      "descripcion": "General de Ley Personas Morales",
+      "tipo_persona": "moral",
+      "is_active": true,
+      "valid_from": "2022-01-01",
+      "valid_to": null,
+      "sat_version": "CFDI 4.0"
+    }
+  },
+  {
+    "model": "fiscal.regimenfiscal",
+    "pk": 2,
+    "fields": {
+      "clave": "603",
+      "descripcion": "Personas Morales con Fines no Lucrativos",
+      "tipo_persona": "moral",
+      "is_active": true,
+      "valid_from": "2022-01-01",
+      "valid_to": null,
+      "sat_version": "CFDI 4.0"
+    }
+  },
+  {
+    "model": "fiscal.regimenfiscal",
+    "pk": 3,
+    "fields": {
+      "clave": "605",
+      "descripcion": "Sueldos y Salarios e Ingresos Asimilados a Salarios",
+      "tipo_persona": "fisica",
+      "is_active": true,
+      "valid_from": "2022-01-01",
+      "valid_to": null,
+      "sat_version": "CFDI 4.0"
+    }
+  },
+  {
+    "model": "fiscal.regimenfiscal",
+    "pk": 4,
+    "fields": {
+      "clave": "606",
+      "descripcion": "Arrendamiento",
+      "tipo_persona": "fisica",
+      "is_active": true,
+      "valid_from": "2022-01-01",
+      "valid_to": null,
+      "sat_version": "CFDI 4.0"
+    }
+  },
+  {
+    "model": "fiscal.regimenfiscal",
+    "pk": 5,
+    "fields": {
+      "clave": "607",
+      "descripcion": "Régimen de Enajenación o Adquisición de Bienes",
+      "tipo_persona": "fisica",
+      "is_active": true,
+      "valid_from": "2022-01-01",
+      "valid_to": null,
+      "sat_version": "CFDI 4.0"
+    }
+  },
+  {
+    "model": "fiscal.regimenfiscal",
+    "pk": 6,
+    "fields": {
+      "clave": "608",
+      "descripcion": "Demás ingresos",
+      "tipo_persona": "fisica",
+      "is_active": true,
+      "valid_from": "2022-01-01",
+      "valid_to": null,
+      "sat_version": "CFDI 4.0"
+    }
+  },
+  {
+    "model": "fiscal.regimenfiscal",
+    "pk": 7,
+    "fields": {
+      "clave": "610",
+      "descripcion": "Residentes en el Extranjero sin Establecimiento Permanente en México",
+      "tipo_persona": "ambos",
+      "is_active": true,
+      "valid_from": "2022-01-01",
+      "valid_to": null,
+      "sat_version": "CFDI 4.0"
+    }
+  },
+  {
+    "model": "fiscal.regimenfiscal",
+    "pk": 8,
+    "fields": {
+      "clave": "611",
+      "descripcion": "Ingresos por Dividendos (socios y accionistas)",
+      "tipo_persona": "fisica",
+      "is_active": true,
+      "valid_from": "2022-01-01",
+      "valid_to": null,
+      "sat_version": "CFDI 4.0"
+    }
+  },
+  {
+    "model": "fiscal.regimenfiscal",
+    "pk": 9,
+    "fields": {
+      "clave": "612",
+      "descripcion": "Personas Físicas con Actividades Empresariales y Profesionales",
+      "tipo_persona": "fisica",
+      "is_active": true,
+      "valid_from": "2022-01-01",
+      "valid_to": null,
+      "sat_version": "CFDI 4.0"
+    }
+  },
+  {
+    "model": "fiscal.regimenfiscal",
+    "pk": 10,
+    "fields": {
+      "clave": "614",
+      "descripcion": "Ingresos por intereses",
+      "tipo_persona": "fisica",
+      "is_active": true,
+      "valid_from": "2022-01-01",
+      "valid_to": null,
+      "sat_version": "CFDI 4.0"
+    }
+  },
+  {
+    "model": "fiscal.regimenfiscal",
+    "pk": 11,
+    "fields": {
+      "clave": "615",
+      "descripcion": "Régimen de los ingresos por obtención de premios",
+      "tipo_persona": "fisica",
+      "is_active": true,
+      "valid_from": "2022-01-01",
+      "valid_to": null,
+      "sat_version": "CFDI 4.0"
+    }
+  },
+  {
+    "model": "fiscal.regimenfiscal",
+    "pk": 12,
+    "fields": {
+      "clave": "616",
+      "descripcion": "Sin obligaciones fiscales",
+      "tipo_persona": "ambos",
+      "is_active": true,
+      "valid_from": "2022-01-01",
+      "valid_to": null,
+      "sat_version": "CFDI 4.0"
+    }
+  },
+  {
+    "model": "fiscal.regimenfiscal",
+    "pk": 13,
+    "fields": {
+      "clave": "620",
+      "descripcion": "Sociedades Cooperativas de Producción que optan por diferir sus ingresos",
+      "tipo_persona": "moral",
+      "is_active": true,
+      "valid_from": "2022-01-01",
+      "valid_to": null,
+      "sat_version": "CFDI 4.0"
+    }
+  },
+  {
+    "model": "fiscal.regimenfiscal",
+    "pk": 14,
+    "fields": {
+      "clave": "621",
+      "descripcion": "Incorporación Fiscal",
+      "tipo_persona": "fisica",
+      "is_active": false,
+      "valid_from": "2014-01-01",
+      "valid_to": "2021-12-31",
+      "sat_version": "CFDI 3.3 (Obsoleto)"
+    }
+  },
+  {
+    "model": "fiscal.regimenfiscal",
+    "pk": 15,
+    "fields": {
+      "clave": "622",
+      "descripcion": "Actividades Agrícolas, Ganaderas, Silvícolas y Pesqueras",
+      "tipo_persona": "ambos",
+      "is_active": true,
+      "valid_from": "2022-01-01",
+      "valid_to": null,
+      "sat_version": "CFDI 4.0"
+    }
+  },
+  {
+    "model": "fiscal.regimenfiscal",
+    "pk": 16,
+    "fields": {
+      "clave": "623",
+      "descripcion": "Opcional para Grupos de Sociedades",
+      "tipo_persona": "moral",
+      "is_active": true,
+      "valid_from": "2022-01-01",
+      "valid_to": null,
+      "sat_version": "CFDI 4.0"
+    }
+  },
+  {
+    "model": "fiscal.regimenfiscal",
+    "pk": 17,
+    "fields": {
+      "clave": "624",
+      "descripcion": "Coordinados",
+      "tipo_persona": "moral",
+      "is_active": true,
+      "valid_from": "2022-01-01",
+      "valid_to": null,
+      "sat_version": "CFDI 4.0"
+    }
+  },
+  {
+    "model": "fiscal.regimenfiscal",
+    "pk": 18,
+    "fields": {
+      "clave": "625",
+      "descripcion": "Régimen de las Actividades Empresariales con ingresos a través de Plataformas Tecnológicas",
+      "tipo_persona": "fisica",
+      "is_active": true,
+      "valid_from": "2020-06-01",
+      "valid_to": null,
+      "sat_version": "CFDI 4.0"
+    }
+  },
+  {
+    "model": "fiscal.regimenfiscal",
+    "pk": 19,
+    "fields": {
+      "clave": "626",
+      "descripcion": "Régimen Simplificado de Confianza",
+      "tipo_persona": "ambos",
+      "is_active": true,
+      "valid_from": "2022-01-01",
+      "valid_to": null,
+      "sat_version": "CFDI 4.0 (Nuevo 2022)"
+    }
+  }
+]

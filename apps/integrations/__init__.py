@@ -1,0 +1,1 @@
+# Las tareas Odoo están en apps.fiscal.odoo.tasks (registradas vía fiscal.apps.ready)

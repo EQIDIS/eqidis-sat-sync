@@ -1,0 +1,80 @@
+{% for cfdi in cfdis %}
+<tr id="cfdi-row-{{ cfdi.uuid }}">
+    <td>
+        <span class="font-mono text-xs" title="{{ cfdi.uuid }}">
+            {{ cfdi.uuid|truncatechars:13 }}
+        </span>
+    </td>
+    <td>
+        {% if cfdi.tipo_cfdi == 'I' %}
+        <span class="badge badge-success badge-sm">Ingreso</span>
+        {% elif cfdi.tipo_cfdi == 'E' %}
+        <span class="badge badge-error badge-sm">Egreso</span>
+        {% elif cfdi.tipo_cfdi == 'P' %}
+        <span class="badge badge-info badge-sm">Pago</span>
+        {% elif cfdi.tipo_cfdi == 'T' %}
+        <span class="badge badge-warning badge-sm">Traslado</span>
+        {% else %}
+        <span class="badge badge-sm">{{ cfdi.tipo_cfdi }}</span>
+        {% endif %}
+    </td>
+    <td>
+        <span class="font-mono text-xs">{{ cfdi.rfc_emisor }}</span>
+    </td>
+    <td>
+        <span class="font-mono text-xs">{{ cfdi.rfc_receptor }}</span>
+    </td>
+    <td class="text-right">
+        <span class="font-mono">${{ cfdi.total|floatformat:2 }}</span>
+        <span class="text-xs text-base-content/50">{{ cfdi.moneda }}</span>
+    </td>
+    <td>
+        <span class="text-sm">{{ cfdi.fecha_emision|date:"d/m/Y" }}</span>
+    </td>
+    <td>
+        {% if cfdi.estado_sat == 'Vigente' %}
+        <span class="badge badge-success badge-sm">Vigente</span>
+        {% elif cfdi.estado_sat == 'Cancelado' %}
+        <span class="badge badge-error badge-sm">Cancelado</span>
+        {% else %}
+        <span class="badge badge-sm">{{ cfdi.estado_sat }}</span>
+        {% endif %}
+    </td>
+    <td>
+        {% if cfdi.estado_cancelacion %}
+            {% if cfdi.estado_cancelacion == 'Cancelable sin aceptación' %}
+            <span class="badge badge-warning badge-xs" title="Sin aceptación">Sin acept.</span>
+            {% elif cfdi.estado_cancelacion == 'Cancelable con aceptación' %}
+            <span class="badge badge-info badge-xs" title="Con aceptación">Con acept.</span>
+            {% elif cfdi.estado_cancelacion == 'No cancelable' %}
+            <span class="badge badge-error badge-xs">No cancel.</span>
+            {% else %}
+            <span class="badge badge-ghost badge-xs">{{ cfdi.estado_cancelacion|truncatechars:12 }}</span>
+            {% endif %}
+        {% else %}
+        <span class="text-base-content/30 text-xs">-</span>
+        {% endif %}
+    </td>
+    <td>
+        <button 
+            class="btn btn-success btn-xs"
+            disabled
+            title="Validado ✓"
+        >
+            ✓
+        </button>
+    </td>
+    <td>
+        {% if cfdi.s3_xml_path %}
+        <a href="{% url 'fiscal:descargar_cfdi' cfdi.uuid %}" target="_blank" class="btn btn-ghost btn-xs">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            XML
+        </a>
+        {% else %}
+        <span class="text-base-content/30 text-xs">-</span>
+        {% endif %}
+    </td>
+</tr>
+{% endfor %}

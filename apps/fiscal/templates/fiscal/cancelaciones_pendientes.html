@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}Cancelaciones Pendientes - {{ current_empresa.nombre }}{% endblock %}
+
+{% block content %}
+<main class="container mx-auto px-4 py-8">
+    <!-- Breadcrumb -->
+    <div class="text-sm breadcrumbs mb-6">
+        <ul>
+            <li><a href="{% url 'companies:dashboard' %}">Inicio</a></li>
+            <li><a href="{% url 'fiscal:descargas' %}">Módulo Fiscal</a></li>
+            <li>Cancelaciones Pendientes</li>
+        </ul>
+    </div>
+
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+        <div>
+            <h1 class="text-2xl font-bold">
+                Cancelaciones Pendientes
+            </h1>
+            <p class="text-base-content/70 mt-1">
+                Facturas que requieren tu aceptación o rechazo de cancelación
+            </p>
+        </div>
+        <a href="{% url 'fiscal:descargas' %}" class="btn btn-ghost mt-4 md:mt-0">
+            ← Volver a Descargas
+        </a>
+    </div>
+
+    <!-- Error -->
+    {% if error %}
+    <div class="alert alert-error mb-6">
+        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <span>{{ error }}</span>
+    </div>
+    {% endif %}
+
+    <!-- Stats -->
+    {% if fiel %}
+    <div class="stats shadow w-full mb-8 bg-base-100">
+        <div class="stat">
+            <div class="stat-figure text-warning">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+            </div>
+            <div class="stat-title">Pendientes de Acción</div>
+            <div class="stat-value text-warning">{{ total_pendientes|default:0 }}</div>
+            <div class="stat-desc">Cancelaciones esperando tu respuesta</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Tabla de Pendientes -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <h2 class="card-title mb-4">CFDIs con Cancelación Pendiente</h2>
+            
+            {% if pendientes %}
+            <div class="overflow-x-auto">
+                <table class="table table-zebra">
+                    <thead>
+                        <tr>
+                            <th>UUID</th>
+                            <th>Emisor</th>
+                            <th>Total</th>
+                            <th>Fecha</th>
+                            <th>En Sistema</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in pendientes %}
+                        <tr>
+                            <td>
+                                <span class="font-mono text-xs" title="{{ item.uuid }}">
+                                    {{ item.uuid|truncatechars:20 }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if item.cfdi %}
+                                <span class="font-mono text-sm">{{ item.cfdi.rfc_emisor }}</span>
+                                {% else %}
+                                <span class="text-base-content/50">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.cfdi %}
+                                <span class="font-mono">${{ item.cfdi.total|floatformat:2 }}</span>
+                                {% else %}
+                                <span class="text-base-content/50">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.cfdi %}
+                                {{ item.cfdi.fecha_emision|date:"d/m/Y" }}
+                                {% else %}
+                                <span class="text-base-content/50">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.en_bd %}
+                                <span class="badge badge-success badge-sm">Sí</span>
+                                {% else %}
+                                <span class="badge badge-ghost badge-sm">No</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="flex gap-2">
+                                    <button class="btn btn-success btn-xs" disabled title="Próximamente">
+                                        Aceptar
+                                    </button>
+                                    <button class="btn btn-error btn-xs" disabled title="Próximamente">
+                                        Rechazar
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% elif not_implemented %}
+            <div class="text-center py-12">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-warning mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h3 class="text-xl font-semibold mb-2">Próximamente</h3>
+                <p class="text-base-content/60">
+                    Esta funcionalidad estará disponible en una próxima actualización.
+                </p>
+                <p class="text-sm text-base-content/40 mt-2">
+                    La consulta de cancelaciones pendientes requiere una implementación especial que estamos desarrollando.
+                </p>
+            </div>
+            {% elif not error %}
+            <div class="text-center py-12">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-success mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h3 class="text-xl font-semibold mb-2">Sin cancelaciones pendientes</h3>
+                <p class="text-base-content/60">
+                    No tienes facturas esperando aceptación o rechazo de cancelación.
+                </p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Info -->
+    <div class="alert alert-info mt-6">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <div>
+            <h3 class="font-bold">¿Qué son las cancelaciones pendientes?</h3>
+            <p class="text-sm">
+                Cuando un proveedor intenta cancelar una factura que te emitió, el SAT te notifica 
+                y tienes 3 días para aceptar o rechazar la cancelación. Si no respondes, se acepta automáticamente.
+            </p>
+        </div>
+    </div>
+</main>
+{% endblock %}

@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}CFDI {{ cfdi.uuid|truncatechars:12 }} - {{ current_empresa.nombre }}{% endblock %}
+
+{% block content %}
+<main class="container mx-auto px-4 py-8">
+    {% if error %}
+    <div class="alert alert-error">
+        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <span>{{ error }}</span>
+    </div>
+    {% else %}
+
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+        <div>
+            <div class="flex items-center gap-2 mb-2">
+                <a href="{% url 'fiscal:cfdis' %}" class="btn btn-ghost btn-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </a>
+                <h1 class="text-2xl font-bold">Detalle de CFDI</h1>
+            </div>
+            <p class="text-base-content/70 font-mono text-sm">
+                UUID: {{ cfdi.uuid }}
+            </p>
+        </div>
+        <div class="flex gap-2 mt-4 md:mt-0">
+            {% if cfdi.s3_xml_path %}
+            <a href="{% url 'fiscal:descargar_cfdi' cfdi.uuid %}" class="btn btn-outline btn-sm" target="_blank">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Descargar XML
+            </a>
+            {% endif %}
+            <button
+                class="btn btn-primary btn-sm"
+                hx-post="{% url 'fiscal:validar_cfdi' cfdi.uuid %}"
+                hx-swap="none"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Verificar Estado SAT
+            </button>
+        </div>
+    </div>
+
+    <!-- Estados -->
+    <div class="flex flex-wrap gap-3 mb-6">
+        <!-- Tipo CFDI -->
+        {% if cfdi.tipo_cfdi == 'I' %}
+        <div class="badge badge-success badge-lg gap-1">Ingreso</div>
+        {% elif cfdi.tipo_cfdi == 'E' %}
+        <div class="badge badge-error badge-lg gap-1">Egreso</div>
+        {% elif cfdi.tipo_cfdi == 'P' %}
+        <div class="badge badge-info badge-lg gap-1">Pago</div>
+        {% elif cfdi.tipo_cfdi == 'T' %}
+        <div class="badge badge-warning badge-lg gap-1">Traslado</div>
+        {% endif %}
+
+        <!-- Estado SAT -->
+        {% if cfdi.estado_sat == 'Vigente' %}
+        <div class="badge badge-success badge-lg badge-outline gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            Vigente
+        </div>
+        {% elif cfdi.estado_sat == 'Cancelado' %}
+        <div class="badge badge-error badge-lg badge-outline gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            Cancelado
+        </div>
+        {% else %}
+        <div class="badge badge-ghost badge-lg">{{ cfdi.estado_sat }}</div>
+        {% endif %}
+
+        <!-- Estado CFDI -->
+        <div class="badge badge-outline badge-lg">{{ cfdi.get_cfdi_state_display }}</div>
+
+        <!-- Metodo Pago -->
+        {% if cfdi.metodo_pago %}
+        <div class="badge badge-ghost badge-lg">{{ cfdi.get_metodo_pago_display }}</div>
+        {% endif %}
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Card Comprobante -->
+        <div class="card bg-base-100 shadow">
+            <div class="card-body">
+                <h2 class="card-title text-primary">Datos del Comprobante</h2>
+
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <span class="text-base-content/60">Serie / Folio</span>
+                        <p class="font-mono">{{ cfdi.serie|default:"-" }} / {{ cfdi.folio|default:"-" }}</p>
+                    </div>
+                    <div>
+                        <span class="text-base-content/60">Fecha Emision</span>
+                        <p class="font-mono">{{ cfdi.fecha_emision|date:"d/m/Y H:i:s" }}</p>
+                    </div>
+                    <div>
+                        <span class="text-base-content/60">Moneda</span>
+                        <p class="font-mono">{{ cfdi.moneda }}</p>
+                    </div>
+                    <div>
+                        <span class="text-base-content/60">Forma de Pago</span>
+                        <p>{% if cfdi.forma_pago %}{{ cfdi.forma_pago }}{% else %}-{% endif %}</p>
+                    </div>
+                    <div>
+                        <span class="text-base-content/60">Uso CFDI</span>
+                        <p>{% if cfdi.uso_cfdi %}{{ cfdi.uso_cfdi }}{% else %}-{% endif %}</p>
+                    </div>
+                    <div>
+                        <span class="text-base-content/60">Origen</span>
+                        <p>{{ cfdi.get_source_display }}</p>
+                    </div>
+                </div>
+
+                <div class="divider my-2"></div>
+
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <span class="text-base-content/60">Subtotal</span>
+                        <p class="font-mono text-lg">${{ cfdi.subtotal|floatformat:2|intcomma }}</p>
+                    </div>
+                    <div>
+                        <span class="text-base-content/60">Descuento</span>
+                        <p class="font-mono text-lg">${{ cfdi.descuento|floatformat:2|intcomma|default:"0.00" }}</p>
+                    </div>
+                    <div class="col-span-2">
+                        <span class="text-base-content/60">Total</span>
+                        <p class="font-mono text-2xl font-bold text-primary">${{ cfdi.total|floatformat:2|intcomma }} {{ cfdi.moneda }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card Emisor/Receptor -->
+        <div class="card bg-base-100 shadow">
+            <div class="card-body">
+                <h2 class="card-title text-primary">Emisor y Receptor</h2>
+
+                <!-- Emisor -->
+                <div class="bg-base-200 rounded-lg p-4 mb-4">
+                    <span class="text-xs text-base-content/60 uppercase tracking-wider">Emisor</span>
+                    <p class="font-mono text-lg font-bold">{{ cfdi.rfc_emisor }}</p>
+                    {% if cfdi.nombre_emisor %}
+                    <p class="text-sm">{{ cfdi.nombre_emisor }}</p>
+                    {% endif %}
+                    {% if cfdi.regimen_fiscal_emisor %}
+                    <p class="text-xs text-base-content/60">Regimen: {{ cfdi.regimen_fiscal_emisor }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Receptor -->
+                <div class="bg-base-200 rounded-lg p-4">
+                    <span class="text-xs text-base-content/60 uppercase tracking-wider">Receptor</span>
+                    <p class="font-mono text-lg font-bold">{{ cfdi.rfc_receptor }}</p>
+                    {% if cfdi.nombre_receptor %}
+                    <p class="text-sm">{{ cfdi.nombre_receptor }}</p>
+                    {% endif %}
+                    {% if cfdi.regimen_fiscal_receptor %}
+                    <p class="text-xs text-base-content/60">Regimen: {{ cfdi.regimen_fiscal_receptor }}</p>
+                    {% endif %}
+                    {% if cfdi.domicilio_fiscal_receptor %}
+                    <p class="text-xs text-base-content/60">CP: {{ cfdi.domicilio_fiscal_receptor }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Card Timbrado -->
+        <div class="card bg-base-100 shadow">
+            <div class="card-body">
+                <h2 class="card-title text-primary">Timbrado Fiscal</h2>
+
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <span class="text-base-content/60">Fecha Timbrado</span>
+                        <p class="font-mono">{{ cfdi.fecha_timbrado|date:"d/m/Y H:i:s"|default:"-" }}</p>
+                    </div>
+                    <div>
+                        <span class="text-base-content/60">No. Certificado SAT</span>
+                        <p class="font-mono">{{ cfdi.no_certificado_sat|default:"-" }}</p>
+                    </div>
+                    <div class="col-span-2">
+                        <span class="text-base-content/60">UUID</span>
+                        <p class="font-mono text-xs break-all">{{ cfdi.uuid }}</p>
+                    </div>
+                </div>
+
+                {% if cfdi.estado_cancelacion %}
+                <div class="divider my-2"></div>
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <span class="text-base-content/60">Estado Cancelacion</span>
+                        <p>{{ cfdi.estado_cancelacion }}</p>
+                    </div>
+                    {% if cfdi.fecha_cancelacion %}
+                    <div>
+                        <span class="text-base-content/60">Fecha Cancelacion</span>
+                        <p class="font-mono">{{ cfdi.fecha_cancelacion|date:"d/m/Y H:i:s" }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Card Metadata -->
+        <div class="card bg-base-100 shadow">
+            <div class="card-body">
+                <h2 class="card-title text-primary">Informacion del Sistema</h2>
+
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <span class="text-base-content/60">Creado en Sistema</span>
+                        <p>{% if cfdi.creado_en_sistema %}<span class="badge badge-success badge-xs">Si</span>{% else %}<span class="badge badge-ghost badge-xs">No</span>{% endif %}</p>
+                    </div>
+                    <div>
+                        <span class="text-base-content/60">Origen</span>
+                        <p>{{ cfdi.get_source_display }}</p>
+                    </div>
+                    <div>
+                        <span class="text-base-content/60">Ultima Verificacion</span>
+                        <p class="font-mono">{{ cfdi.last_state_check|date:"d/m/Y H:i"|default:"-" }}</p>
+                    </div>
+                    <div>
+                        <span class="text-base-content/60">Creado</span>
+                        <p class="font-mono">{{ cfdi.created_at|date:"d/m/Y H:i" }}</p>
+                    </div>
+                    {% if cfdi.xml_hash %}
+                    <div class="col-span-2">
+                        <span class="text-base-content/60">Hash XML</span>
+                        <p class="font-mono text-xs break-all">{{ cfdi.xml_hash }}</p>
+                    </div>
+                    {% endif %}
+                    {% if cfdi.xml_size %}
+                    <div>
+                        <span class="text-base-content/60">Tamano XML</span>
+                        <p class="font-mono">{{ cfdi.xml_size|filesizeformat }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Historial de Verificaciones -->
+    {% if state_checks %}
+    <div class="card bg-base-100 shadow mt-6">
+        <div class="card-body">
+            <h2 class="card-title text-primary">Historial de Verificaciones</h2>
+
+            <div class="overflow-x-auto">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Estado Anterior</th>
+                            <th>Estado Nuevo</th>
+                            <th>Fuente</th>
+                            <th>Cambio</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for check in state_checks %}
+                        <tr>
+                            <td class="font-mono text-xs">{{ check.checked_at|date:"d/m/Y H:i:s" }}</td>
+                            <td>{{ check.estado_anterior|default:"-" }}</td>
+                            <td>
+                                {% if check.estado_sat == 'Vigente' %}
+                                <span class="badge badge-success badge-xs">Vigente</span>
+                                {% elif check.estado_sat == 'Cancelado' %}
+                                <span class="badge badge-error badge-xs">Cancelado</span>
+                                {% else %}
+                                <span class="badge badge-ghost badge-xs">{{ check.estado_sat }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ check.get_source_display }}</td>
+                            <td>
+                                {% if check.es_cambio %}
+                                <span class="badge badge-warning badge-xs">Cambio</span>
+                                {% else %}
+                                <span class="text-base-content/30">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% endif %}
+</main>
+{% endblock %}

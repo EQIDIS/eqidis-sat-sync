@@ -1,0 +1,266 @@
+[
+  {
+    "model": "fiscal.formapago",
+    "pk": 1,
+    "fields": {
+      "clave": "01",
+      "descripcion": "Efectivo",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 2,
+    "fields": {
+      "clave": "02",
+      "descripcion": "Cheque nominativo",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 3,
+    "fields": {
+      "clave": "03",
+      "descripcion": "Transferencia electrónica de fondos",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 4,
+    "fields": {
+      "clave": "04",
+      "descripcion": "Tarjeta de crédito",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 5,
+    "fields": {
+      "clave": "05",
+      "descripcion": "Monedero electrónico",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 6,
+    "fields": {
+      "clave": "06",
+      "descripcion": "Dinero electrónico",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 7,
+    "fields": {
+      "clave": "08",
+      "descripcion": "Vales de despensa",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 8,
+    "fields": {
+      "clave": "12",
+      "descripcion": "Dación en pago",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 9,
+    "fields": {
+      "clave": "13",
+      "descripcion": "Pago por subrogación",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 10,
+    "fields": {
+      "clave": "14",
+      "descripcion": "Pago por consignación",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 11,
+    "fields": {
+      "clave": "15",
+      "descripcion": "Condonación",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 12,
+    "fields": {
+      "clave": "17",
+      "descripcion": "Compensación",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 13,
+    "fields": {
+      "clave": "23",
+      "descripcion": "Novación",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 14,
+    "fields": {
+      "clave": "24",
+      "descripcion": "Confusión",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 15,
+    "fields": {
+      "clave": "25",
+      "descripcion": "Remisión de deuda",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 16,
+    "fields": {
+      "clave": "26",
+      "descripcion": "Prescripción o caducidad",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 17,
+    "fields": {
+      "clave": "27",
+      "descripcion": "A satisfacción del acreedor",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 18,
+    "fields": {
+      "clave": "28",
+      "descripcion": "Tarjeta de débito",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 19,
+    "fields": {
+      "clave": "29",
+      "descripcion": "Tarjeta de servicios",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 20,
+    "fields": {
+      "clave": "30",
+      "descripcion": "Aplicación de anticipos",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 21,
+    "fields": {
+      "clave": "31",
+      "descripcion": "Intermediario pagos",
+      "is_active": true,
+      "valid_from": "2020-01-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+ (Agregado 2020)"
+    }
+  },
+  {
+    "model": "fiscal.formapago",
+    "pk": 22,
+    "fields": {
+      "clave": "99",
+      "descripcion": "Por definir",
+      "is_active": true,
+      "valid_from": "2017-07-01",
+      "valid_to": null,
+      "sat_version": "CFDI 3.3+"
+    }
+  }
+]

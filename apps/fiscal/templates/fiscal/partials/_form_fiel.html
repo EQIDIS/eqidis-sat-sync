@@ -1,0 +1,84 @@
+<form
+  hx-post="{% url 'fiscal:upload_fiel' %}"
+  hx-target="#form-fiel-container"
+  hx-swap="innerHTML"
+  hx-indicator="#fiel-loading"
+  enctype="multipart/form-data"
+  class="space-y-4"
+>
+  {% csrf_token %} {% if form_fiel.non_field_errors %}
+  <div class="alert alert-error">
+    {% for error in form_fiel.non_field_errors %}
+    <span>{{ error }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Archivo .cer -->
+  <div class="form-control w-full">
+    <label class="label"
+      ><span class="label-text font-semibold"
+        >Certificado e.firma (.cer) *</span
+      ></label
+    >
+    {{ form_fiel.archivo_cer }} {% if form_fiel.archivo_cer.errors %}
+    <span class="text-error text-xs mt-1"
+      >{{ form_fiel.archivo_cer.errors.0 }}</span
+    >
+    {% endif %}
+  </div>
+
+  <!-- Archivo .key -->
+  <div class="form-control w-full">
+    <label class="label"
+      ><span class="label-text font-semibold"
+        >Llave Privada (.key) *</span
+      ></label
+    >
+    {{ form_fiel.archivo_key }} {% if form_fiel.archivo_key.errors %}
+    <span class="text-error text-xs mt-1"
+      >{{ form_fiel.archivo_key.errors.0 }}</span
+    >
+    {% endif %}
+  </div>
+
+  <!-- Contraseña -->
+  <div class="form-control w-full">
+    <label class="label"
+      ><span class="label-text font-semibold">Contraseña *</span></label
+    >
+    {{ form_fiel.contrasena }}
+    <label class="label">
+      <span class="label-text-alt text-warning">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="1.5"
+          stroke="currentColor"
+          class="w-4 h-4 inline mr-1"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
+          />
+        </svg>
+        Tu contraseña nunca se guarda.
+      </span>
+    </label>
+    {% if form_fiel.contrasena.errors %}
+    <span class="text-error text-xs">{{ form_fiel.contrasena.errors.0 }}</span>
+    {% endif %}
+  </div>
+
+  <div class="modal-action">
+    <span
+      id="fiel-loading"
+      class="htmx-indicator loading loading-spinner loading-md"
+    ></span>
+    <button type="submit" class="btn btn-secondary">
+      Validar y Guardar FIEL
+    </button>
+  </div>
+</form>

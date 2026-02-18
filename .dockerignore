@@ -1,0 +1,43 @@
+# Git
+.git
+.gitignore
+
+# Python
+.venv
+venv
+env
+__pycache__
+*.py[cod]
+*.so
+.Python
+*.egg-info
+.eggs
+dist
+build
+
+# Env y secretos (nunca en imagen)
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.idea
+.vscode
+*.swp
+.DS_Store
+
+# Tests y cobertura
+.pytest_cache
+.coverage
+htmlcov
+.tox
+
+# Documentación local (opcional)
+# docs/
+
+# Celery beat schedule (generado en runtime)
+celerybeat-schedule
+celerybeat-schedule.*
+
+# SQLite de desarrollo (si se usó)
+*.sqlite3

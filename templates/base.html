@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Aspeia Finance{% endblock %}</title>
+    
+    <!-- TailwindCSS + DaisyUI via CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>
+    
+    <!-- HTMX CSRF Token Configuration -->
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // CSRF Token Setup
+            document.body.addEventListener('htmx:configRequest', function(event) {
+                event.detail.headers['X-CSRFToken'] = document.querySelector('meta[name="csrf-token"]').content;
+            });
+            
+            // Listen for 'showToast' event from backend (HX-Trigger)
+            document.body.addEventListener('showToast', function(event) {
+                const toastData = event.detail;
+                const message = toastData.message;
+                const type = toastData.type || 'info';
+                
+                // Construct toast HTML using Alpine for auto-dismiss
+                const toastHtml = `
+                    <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 4000)" x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="alert alert-${type} cursor-pointer" @click="show = false">
+                        <span>${message}</span>
+                    </div>
+                `;
+                
+                // Find or create toast container
+                let container = document.querySelector('.toast.toast-end');
+                if (!container) {
+                    container = document.createElement('div');
+                    container.className = 'toast toast-end z-50';
+                    document.body.appendChild(container);
+                }
+                
+                // Insert new toast
+                container.insertAdjacentHTML('beforeend', toastHtml);
+            });
+        });
+    </script>
+    
+    <!-- HTMX Indicator Styles -->
+    <style>
+        /* HTMX Loading Indicators - hidden by default, no space taken */
+        .htmx-indicator {
+            display: none;
+        }
+        .htmx-request .htmx-indicator,
+        .htmx-request.htmx-indicator {
+            display: inline-flex;
+        }
+        /* Hide content during request */
+        .htmx-request .htmx-hide-on-request {
+            display: none !important;
+        }
+    </style>
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="min-h-screen bg-base-200" hx-boost="true">
+    <!-- Toast messages with auto-dismiss -->
+    {% if messages %}
+    <div class="toast toast-end z-50">
+        {% for message in messages %}
+        <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 4000)" x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-error{% elif message.tags == 'warning' %}alert-warning{% else %}alert-info{% endif %} cursor-pointer" @click="show = false">
+            <span>{{ message }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    <!-- Global Navbar (Visible only when tenant is active) -->
+    {% if current_empresa %}
+    <div class="navbar bg-base-100 shadow-lg sticky top-0 z-40">
+        <div class="flex-1">
+            <a href="/" class="btn btn-ghost text-xl bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Aspeia Finance</a>
+        </div>
+        
+        <!-- Company Switcher -->
+        <div class="flex-none gap-2">
+            <div x-data="{ open: false }" class="dropdown dropdown-end" @click.away="open = false">
+                <button @click="open = !open" tabindex="0" class="btn btn-ghost gap-2">
+                    <span>{{ current_empresa.nombre }}</span>
+                    <div class="badge badge-primary">{{ current_rol }}</div>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                <ul x-show="open" x-transition tabindex="0" class="dropdown-content menu bg-base-200 rounded-box z-[1] w-72 p-2 shadow-lg" style="display: none;">
+                    <li class="menu-title"><span>Mis Empresas</span></li>
+                    {% for membresia in available_empresas %}
+                    <li>
+                        <a href="{% url 'companies:set_tenant' membresia.empresa.id %}" class="{% if membresia.empresa == current_empresa %}active{% endif %}" hx-boost="false">
+                            <div class="flex flex-col gap-1">
+                                <span class="font-bold">{{ membresia.empresa.nombre }}</span>
+                                <span class="text-xs opacity-70">{{ membresia.get_rol_display }}</span>
+                            </div>
+                        </a>
+                    </li>
+                    {% endfor %}
+                    <li class="mt-2 border-t border-base-300"></li>
+                    <li><a href="{% url 'companies:seleccionar_empresa' %}" class="text-primary">Gestionar Empresas</a></li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- User Menu -->
+        {% if user.is_authenticated %}
+        <div class="flex-none gap-2">
+            <div x-data="{ open: false }" class="dropdown dropdown-end" @click.away="open = false">
+                <button @click="open = !open" tabindex="0" class="btn btn-ghost btn-circle avatar placeholder">
+                    <div class="bg-primary text-primary-content w-10 rounded-full"><span>{{ user.email|slice:":1"|upper }}</span></div>
+                </button>
+                <ul x-show="open" x-transition tabindex="0" class="dropdown-content menu bg-base-200 rounded-box z-[1] w-52 p-2 shadow-lg" style="display: none;">
+                    <li class="menu-title"><span>{{ user.email }}</span></li>
+                    
+                    <!-- NEW: Shortcut to Fiscal Config -->
+                    <li><a href="{% url 'fiscal:dashboard' %}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        Certificados y Fiscal
+                    </a></li>
+                    
+                    <li class="border-t border-base-300 my-1"></li>
+                    <li><a href="{% url 'account_logout' %}">Cerrar Sesión</a></li>
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    </div>
+    {% endif %}
+
+    <!-- Breadcrumbs Global Container -->
+    {% if user.is_authenticated and current_empresa %}
+    <div class="container mx-auto px-4 mt-4">
+        <div class="text-sm breadcrumbs">
+            <ul>
+                <li>
+                    <a href="{% url 'companies:dashboard' %}" class="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-4 h-4 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                        Dashboard
+                    </a>
+                </li>
+                {% block breadcrumbs %}{% endblock %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% block content %}{% endblock %}
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

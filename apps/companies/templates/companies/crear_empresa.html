@@ -1,0 +1,152 @@
+{% extends "base.html" %} {% block title %}Crear Nueva Empresa | Aspeia
+Finance{% endblock %} {% block content %}
+<div
+  class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8"
+>
+  <div class="card w-full max-w-2xl bg-base-100 shadow-xl">
+    <div class="card-body">
+      <h2 class="card-title text-2xl font-bold text-center mb-6">
+        Dar de Alta Nueva Empresa
+      </h2>
+
+      <form method="post" enctype="multipart/form-data" class="space-y-4">
+        {% csrf_token %}
+
+        <!-- Gestión de errores generales -->
+        {% if form.non_field_errors %}
+        <div class="alert alert-error">
+          <ul>
+            {% for error in form.non_field_errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Nombre (Interno) -->
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">Nombre Comercial *</span>
+            </label>
+            {{ form.nombre }} {% if form.nombre.errors %}
+            <label class="label">
+              <span class="label-text-alt text-error"
+                >{{ form.nombre.errors.0 }}</span
+              >
+            </label>
+            {% endif %}
+          </div>
+
+          <!-- Razón Social -->
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">Razón Social (SAT)</span>
+            </label>
+            {{ form.razon_social }}
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- RFC -->
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">RFC *</span>
+            </label>
+            {{ form.rfc }}
+            <label class="label">
+              <span class="label-text-alt">{{ form.rfc.help_text }}</span>
+            </label>
+            {% if form.rfc.errors %}
+            <label class="label">
+              <span class="label-text-alt text-error"
+                >{{ form.rfc.errors.0 }}</span
+              >
+            </label>
+            {% endif %}
+          </div>
+
+          <!-- Código Postal -->
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">Código Postal Fiscal *</span>
+            </label>
+            {{ form.codigo_postal }} {% if form.codigo_postal.errors %}
+            <label class="label">
+              <span class="label-text-alt text-error"
+                >{{ form.codigo_postal.errors.0 }}</span
+              >
+            </label>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Régimen Fiscal -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text">Régimen Fiscal</span>
+          </label>
+          {{ form.regimen_fiscal }}
+        </div>
+
+        <!-- Dirección -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text">Dirección Fiscal</span>
+          </label>
+          {{ form.direccion }}
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Email -->
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">Email de Contacto</span>
+            </label>
+            {{ form.email }}
+          </div>
+
+          <!-- Teléfono -->
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">Teléfono</span>
+            </label>
+            {{ form.telefono }}
+          </div>
+        </div>
+
+        <!-- Logo -->
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text">Logo de la Empresa</span>
+          </label>
+          {{ form.logo }}
+        </div>
+
+        <div class="card-actions justify-end mt-8">
+          <a
+            href="{% url 'companies:seleccionar_empresa' %}"
+            class="btn btn-ghost"
+            >Cancelar</a
+          >
+          <button type="submit" class="btn btn-primary">
+            Crear Empresa y Continuar
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5 ml-2"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                clip-rule="evenodd"
+              />
+            </svg>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

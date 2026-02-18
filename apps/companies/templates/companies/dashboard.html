@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - {{ current_empresa.nombre }}{% endblock %}
+
+{% block content %}
+    <main class="container mx-auto px-4 py-8">
+        <!-- Welcome Card -->
+        <div class="card bg-base-100 shadow-xl mb-8">
+            <div class="card-body">
+                <h1 class="card-title text-3xl bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                    ¡Bienvenido{% if user.first_name %}, {{ user.first_name }}{% endif %}!
+                </h1>
+                <p class="text-base-content/70">
+                    Trabajando en <span class="font-semibold text-primary">{{ current_empresa.nombre }}</span> 
+                    como <span class="badge badge-outline">{{ current_rol }}</span>
+                </p>
+            </div>
+        </div>
+
+        <!-- General Stats -->
+        <div class="stats stats-vertical lg:stats-horizontal shadow w-full bg-base-100">
+            <div class="stat">
+                <div class="stat-title">Empresa</div>
+                <div class="stat-value text-primary text-xl md:text-2xl whitespace-nowrap overflow-hidden text-ellipsis">
+                    {{ current_empresa.nombre }}
+                </div>
+            </div>
+            <div class="stat">
+                <div class="stat-title">Tu Rol</div>
+                <div class="stat-value text-secondary text-xl md:text-2xl">
+                    {{ current_rol|title }}
+                </div>
+            </div>
+            <div class="stat">
+                <div class="stat-title">RFC</div>
+                <div class="stat-value text-xl md:text-2xl">
+                    {% if current_empresa.rfc %}{{ current_empresa.rfc }}{% else %}—{% endif %}
+                </div>
+            </div>
+            <div class="stat">
+                <div class="stat-title">Estado</div>
+                <div class="stat-value text-success text-xl md:text-2xl">Activo</div>
+            </div>
+        </div>
+        
+        <!-- Main Apps Grid -->
+        <h2 class="text-2xl font-bold mb-6 mt-12 flex items-center gap-2 border-b border-base-300 pb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            Operación Fiscal
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+            
+            <!-- CFDIs (vista unificada: SAT + Odoo) -->
+            <a href="{% url 'fiscal:cfdis' %}" class="card bg-base-100 shadow-xl hover:shadow-2xl transition-all hover:-translate-y-1 border border-base-200 group">
+                <div class="card-body">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="p-3 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                        <span class="badge badge-sm">SAT + Odoo</span>
+                    </div>
+                    <h2 class="card-title">CFDIs</h2>
+                    <p class="text-base-content/70 text-sm">Vista unificada de comprobantes fiscales, descarga desde SAT y sincronización con Odoo.</p>
+                </div>
+            </a>
+
+            <!-- Cancelaciones -->
+            <a href="{% url 'fiscal:cancelaciones_pendientes' %}" class="card bg-base-100 shadow-xl hover:shadow-2xl transition-all hover:-translate-y-1 border border-base-200 group">
+                <div class="card-body">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="p-3 bg-secondary/10 rounded-lg group-hover:bg-secondary/20 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </div>
+                        <!-- Optional Badge if needed -->
+                    </div>
+                    <h2 class="card-title">Buzón de Cancelaciones</h2>
+                    <p class="text-base-content/70 text-sm">Gestión de solicitudes de cancelación pendientes de aprobación o rechazo.</p>
+                </div>
+            </a>
+
+            <!-- Configuración Fiscal -->
+            <a href="{% url 'fiscal:dashboard' %}" class="card bg-base-100 shadow-xl hover:shadow-2xl transition-all hover:-translate-y-1 border border-base-200 group">
+                <div class="card-body">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="p-3 bg-accent/10 rounded-lg group-hover:bg-accent/20 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                            </svg>
+                        </div>
+                    </div>
+                    <h2 class="card-title">Configuración (FIEL/CSD)</h2>
+                    <p class="text-base-content/70 text-sm">Administra tus certificados digitales (e.firma y sellos) necesarios para operar.</p>
+                </div>
+            </a>
+            
+        </div>
+
+        <!-- Section: Administración -->
+        <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-info" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Administración del Sistema
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Selector de Empresas -->
+            <a href="{% url 'companies:seleccionar_empresa' %}" class="card bg-base-100 shadow-xl hover:shadow-2xl transition-all hover:-translate-y-1 border border-base-200 group">
+                <div class="card-body">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="p-3 bg-info/10 rounded-lg group-hover:bg-info/20 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-info" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                        </div>
+                    </div>
+                    <h2 class="card-title">Mis Empresas</h2>
+                    <p class="text-base-content/70 text-sm">Cambiar de empresa activa, crear nuevas organizaciones o gestionar suscripciones.</p>
+                </div>
+            </a>
+        </div>
+    </main>
+{% endblock %}

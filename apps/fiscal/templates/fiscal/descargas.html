@@ -1,0 +1,333 @@
+{% extends "base.html" %}
+
+{% block title %}Descarga Masiva SAT - {{ current_empresa.nombre }}{% endblock %}
+
+{% block content %}
+<main class="container mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+        <div>
+            <h1 class="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                Descarga Masiva SAT
+            </h1>
+            <p class="text-base-content/70 mt-1">
+                Descarga automática de CFDIs desde el Web Service del SAT
+            </p>
+        </div>
+        <button 
+            class="btn btn-primary mt-4 md:mt-0"
+            onclick="document.getElementById('modal_nueva_descarga').showModal()"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Nueva Descarga
+        </button>
+    </div>
+
+    <!-- Requisitos -->
+    {% if not fiel %}
+    <div class="alert alert-warning mb-6">
+        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+        <div>
+            <h3 class="font-bold">FIEL no configurada</h3>
+            <p>Para descargar CFDIs del SAT necesitas cargar tu e.firma (FIEL).</p>
+        </div>
+        <a href="{% url 'fiscal:dashboard' %}" class="btn btn-sm">Configurar FIEL</a>
+    </div>
+    {% endif %}
+
+    <!-- Configuración de Sincronización Automática -->
+    <div class="card bg-base-100 shadow-xl mb-8 border border-base-200">
+        <div class="card-body">
+            <h2 class="card-title text-primary flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Sincronización Automática Diaria
+            </h2>
+            <p class="text-base-content/70 text-sm mb-4">
+                El sistema descargará automáticamente las facturas emitidas y recibidas todos los días a la hora programada.
+                La descarga abarca los últimos 3 días para asegurar que no falten facturas por retrasos del SAT.
+            </p>
+            
+            <form 
+                hx-post="{% url 'fiscal:update_sync_settings' %}"
+                hx-trigger="change"
+                hx-swap="none"
+                class="flex flex-col md:flex-row gap-6 items-center"
+            >
+                {% csrf_token %}
+                
+                <!-- Toggle Switch -->
+                <div class="form-control w-full md:w-auto">
+                    <label class="label cursor-pointer gap-4 justify-start">
+                        <span class="label-text font-medium">Activar Sincronización</span>
+                        <input 
+                            type="checkbox" 
+                            name="auto_sync" 
+                            class="toggle toggle-primary toggle-lg"
+                            {% if sync_settings.auto_sync_enabled %}checked{% endif %}
+                        />
+                    </label>
+                </div>
+                
+                <!-- Hour Selector -->
+                <div class="form-control w-full md:w-auto flex-1">
+                    <div class="flex items-center gap-3">
+                        <label class="label-text whitespace-nowrap">Hora de ejecución diaria:</label>
+                        <select 
+                            name="scheduled_hour" 
+                            class="select select-bordered w-full md:w-48"
+                        >
+                            <option value="0" {% if sync_settings.scheduled_start_hour == 0 %}selected{% endif %}>12:00 AM (Medianoche)</option>
+                            <option value="1" {% if sync_settings.scheduled_start_hour == 1 %}selected{% endif %}>01:00 AM</option>
+                            <option value="2" {% if sync_settings.scheduled_start_hour == 2 %}selected{% endif %}>02:00 AM</option>
+                            <option value="3" {% if sync_settings.scheduled_start_hour == 3 %}selected{% endif %}>03:00 AM (Recomendado)</option>
+                            <option value="4" {% if sync_settings.scheduled_start_hour == 4 %}selected{% endif %}>04:00 AM</option>
+                            <option value="5" {% if sync_settings.scheduled_start_hour == 5 %}selected{% endif %}>05:00 AM</option>
+                            <option value="6" {% if sync_settings.scheduled_start_hour == 6 %}selected{% endif %}>06:00 AM</option>
+                            <option value="7" {% if sync_settings.scheduled_start_hour == 7 %}selected{% endif %}>07:00 AM</option>
+                            <option value="8" {% if sync_settings.scheduled_start_hour == 8 %}selected{% endif %}>08:00 AM</option>
+                            <option value="9" {% if sync_settings.scheduled_start_hour == 9 %}selected{% endif %}>09:00 AM</option>
+                            <option value="10" {% if sync_settings.scheduled_start_hour == 10 %}selected{% endif %}>10:00 AM</option>
+                            <option value="11" {% if sync_settings.scheduled_start_hour == 11 %}selected{% endif %}>11:00 AM</option>
+                            <option value="12" {% if sync_settings.scheduled_start_hour == 12 %}selected{% endif %}>12:00 PM (Mediodía)</option>
+                            <option value="13" {% if sync_settings.scheduled_start_hour == 13 %}selected{% endif %}>01:00 PM</option>
+                            <option value="14" {% if sync_settings.scheduled_start_hour == 14 %}selected{% endif %}>02:00 PM</option>
+                            <option value="15" {% if sync_settings.scheduled_start_hour == 15 %}selected{% endif %}>03:00 PM</option>
+                            <option value="16" {% if sync_settings.scheduled_start_hour == 16 %}selected{% endif %}>04:00 PM</option>
+                            <option value="17" {% if sync_settings.scheduled_start_hour == 17 %}selected{% endif %}>05:00 PM</option>
+                            <option value="18" {% if sync_settings.scheduled_start_hour == 18 %}selected{% endif %}>06:00 PM</option>
+                            <option value="19" {% if sync_settings.scheduled_start_hour == 19 %}selected{% endif %}>07:00 PM</option>
+                            <option value="20" {% if sync_settings.scheduled_start_hour == 20 %}selected{% endif %}>08:00 PM</option>
+                            <option value="21" {% if sync_settings.scheduled_start_hour == 21 %}selected{% endif %}>09:00 PM</option>
+                            <option value="22" {% if sync_settings.scheduled_start_hour == 22 %}selected{% endif %}>10:00 PM</option>
+                            <option value="23" {% if sync_settings.scheduled_start_hour == 23 %}selected{% endif %}>11:00 PM</option>
+                        </select>
+                        
+                        <!-- Saving Indicator -->
+                        <span class="loading loading-spinner text-primary htmx-indicator ml-2"></span>
+                    </div>
+                </div>
+
+                {% if sync_settings.last_sync_at %}
+                <div class="text-xs text-base-content/50 md:ml-auto">
+                    Última sincronización auto: {{ sync_settings.last_sync_at|date:"d M Y H:i" }}
+                </div>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="stats stats-vertical lg:stats-horizontal shadow w-full mb-8 bg-base-100">
+        <div class="stat">
+            <div class="stat-figure text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            </div>
+            <div class="stat-title">CFDIs Descargados</div>
+            <div class="stat-value text-primary">{{ total_cfdis|default:0 }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-figure text-secondary">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                </svg>
+            </div>
+            <div class="stat-title">Solicitudes</div>
+            <div class="stat-value text-secondary">{{ total_solicitudes|default:0 }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-figure text-accent">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="stat-title">En Proceso</div>
+            <div class="stat-value text-accent">{{ solicitudes_pendientes|default:0 }}</div>
+        </div>
+    </div>
+
+    <!-- Tabla de Solicitudes -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <h2 class="card-title mb-4">Historial de Descargas</h2>
+            
+            {% if solicitudes %}
+            <div class="overflow-x-auto">
+                <table class="table table-zebra">
+                    <thead>
+                        <tr>
+                            <th>Fecha Solicitud</th>
+                            <th>Tipo</th>
+                            <th>Rango</th>
+                            <th>Estado</th>
+                            <th>CFDIs</th>
+                            <th>Paquetes</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for solicitud in solicitudes %}
+                        <tr>
+                            <td>
+                                <span class="font-mono text-sm">{{ solicitud.created_at|date:"d/m/Y H:i" }}</span>
+                            </td>
+                            <td>
+                                {% if solicitud.tipo == 'emitidos' %}
+                                <span class="badge badge-info">Emitidos</span>
+                                {% else %}
+                                <span class="badge badge-success">Recibidos</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="text-sm">
+                                    {{ solicitud.fecha_inicio|date:"d/m/Y" }} - {{ solicitud.fecha_fin|date:"d/m/Y" }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if solicitud.status == 'requested' %}
+                                <span class="badge badge-warning gap-1">
+                                    <span class="loading loading-spinner loading-xs"></span>
+                                    Solicitado
+                                </span>
+                                {% elif solicitud.status == 'ready' %}
+                                <span class="badge badge-info gap-1">
+                                    <span class="loading loading-spinner loading-xs"></span>
+                                    Descargando
+                                </span>
+                                {% elif solicitud.status == 'downloaded' %}
+                                <span class="badge badge-success">✓ Completado</span>
+                                {% elif solicitud.status == 'failed' %}
+                                <span class="badge badge-error">✗ Error</span>
+                                {% else %}
+                                <span class="badge">{{ solicitud.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="font-mono">{{ solicitud.total_cfdis|default:"-" }}</span>
+                            </td>
+                            <td>
+                                <span class="font-mono">{{ solicitud.packages.count }}</span>
+                            </td>
+                            <td>
+                                {% if solicitud.status == 'downloaded' %}
+                                <div class="flex gap-1">
+                                    <a href="{% url 'fiscal:descargas_detalle' solicitud.id %}" class="btn btn-ghost btn-xs">
+                                        Ver CFDIs
+                                    </a>
+                                    {% for package in solicitud.packages.all %}
+                                    {% if package.s3_zip_path %}
+                                    <a href="{% url 'fiscal:descargar_paquete' package.id %}" 
+                                       target="_blank"
+                                       class="btn btn-outline btn-xs" 
+                                       title="Descargar paquete ZIP">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                        </svg>
+                                        ZIP
+                                    </a>
+                                    {% endif %}
+                                    {% endfor %}
+                                </div>
+                                {% elif solicitud.status == 'failed' %}
+                                <button class="btn btn-ghost btn-xs text-error" 
+                                        onclick="alert('{{ solicitud.sat_response_raw|truncatechars:200 }}')">
+                                    Ver Error
+                                </button>
+                                {% else %}
+                                <span class="text-base-content/50 text-sm">Procesando...</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-12">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-base-content/30 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                </svg>
+                <h3 class="text-xl font-semibold mb-2">Sin descargas</h3>
+                <p class="text-base-content/60 mb-4">
+                    No has solicitado ninguna descarga masiva del SAT aún.
+                </p>
+                {% if fiel %}
+                <button 
+                    class="btn btn-primary"
+                    onclick="document.getElementById('modal_nueva_descarga').showModal()"
+                >
+                    Crear Primera Descarga
+                </button>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</main>
+
+<!-- Modal Nueva Descarga -->
+<dialog id="modal_nueva_descarga" class="modal">
+    <div class="modal-box">
+        <form method="dialog">
+            <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+        </form>
+        <h3 class="font-bold text-lg mb-4">Nueva Descarga Masiva</h3>
+        
+        <form method="post" action="{% url 'fiscal:descargas_crear' %}" class="space-y-4">
+            {% csrf_token %}
+            
+            <!-- Tipo -->
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Tipo de CFDIs</span>
+                </label>
+                <select name="tipo" class="select select-bordered w-full" required>
+                    <option value="recibidos">Recibidos (Gastos / Proveedores)</option>
+                    <option value="emitidos">Emitidos (Facturas de venta)</option>
+                </select>
+            </div>
+            
+            <!-- Fecha Inicio -->
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Fecha Inicio</span>
+                </label>
+                <input type="date" name="fecha_inicio" class="input input-bordered w-full" required>
+            </div>
+            
+            <!-- Fecha Fin -->
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Fecha Fin</span>
+                </label>
+                <input type="date" name="fecha_fin" class="input input-bordered w-full" required>
+            </div>
+            
+            <div class="alert alert-info text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <span>El SAT procesa las solicitudes en un plazo de 5-30 minutos dependiendo del volumen.</span>
+            </div>
+            
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('modal_nueva_descarga').close()">
+                    Cancelar
+                </button>
+                <button type="submit" class="btn btn-primary" {% if not fiel %}disabled{% endif %}>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Solicitar Descarga
+                </button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+{% endblock %}

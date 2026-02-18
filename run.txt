@@ -1,0 +1,5 @@
+cd aspeia_accounting && .venv/bin/python manage.py runserver
+
+cd aspeia_accounting && .venv/bin/celery -A config worker -l info
+
+cd aspeia_accounting && .venv/bin/celery -A config beat -l info

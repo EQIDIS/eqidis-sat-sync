@@ -1399,8 +1399,8 @@ class OdooCompaniesOptionsView(TenantMixin, View):
             )
         selected_id = None
         conn = OdooConnection.objects.filter(empresa=self.empresa).first()
-        if conn:
-            selected_id = conn.odoo_company_id
+        if conn and conn.odoo_company_id is not None:
+            selected_id = int(conn.odoo_company_id)
         try:
             companies = client.get_companies()
         except OdooClientError:
@@ -1408,9 +1408,12 @@ class OdooCompaniesOptionsView(TenantMixin, View):
         options = ['<option value="">— Selecciona empresa en Odoo —</option>']
         for c in companies:
             sid = c.get('id')
+            if sid is None:
+                continue
+            sid_int = int(sid)
             name = (c.get('name') or '').replace('<', '&lt;').replace('>', '&gt;')
-            sel = ' selected' if sid == selected_id else ''
-            options.append(f'<option value="{sid}"{sel}>{name} (ID {sid})</option>')
+            sel = ' selected' if (selected_id is not None and sid_int == selected_id) else ''
+            options.append(f'<option value="{sid_int}"{sel}>{name} (ID {sid_int})</option>')
         return HttpResponse(''.join(options))
 
 
@@ -1425,13 +1428,34 @@ class OdooSetCompanyView(TenantMixin, View):
         from django.http import JsonResponse
         from apps.integrations.odoo.models import OdooConnection
 
+        raw_value = request.POST.get('odoo_company_id', '').strip()
+        if not raw_value:
+            err = 'Selecciona una empresa de Odoo'
+            if request.headers.get('HX-Request'):
+                return HttpResponse(
+                    f'<div class="alert alert-warning text-sm mt-2" role="alert">{err}</div>',
+                    status=400,
+                )
+            return JsonResponse({'error': err}, status=400)
         try:
-            odoo_company_id = int(request.POST.get('odoo_company_id', 0))
+            odoo_company_id = int(raw_value)
         except (ValueError, TypeError):
-            return JsonResponse({'error': 'odoo_company_id inválido'}, status=400)
+            err = 'odoo_company_id inválido'
+            if request.headers.get('HX-Request'):
+                return HttpResponse(
+                    f'<div class="alert alert-error text-sm mt-2" role="alert">{err}</div>',
+                    status=400,
+                )
+            return JsonResponse({'error': err}, status=400)
 
         if odoo_company_id <= 0:
-            return JsonResponse({'error': 'Selecciona una empresa de Odoo'}, status=400)
+            err = 'Selecciona una empresa de Odoo'
+            if request.headers.get('HX-Request'):
+                return HttpResponse(
+                    f'<div class="alert alert-warning text-sm mt-2" role="alert">{err}</div>',
+                    status=400,
+                )
+            return JsonResponse({'error': err}, status=400)
 
         connection = OdooConnection.objects.filter(empresa=self.empresa).first()
         if connection:
@@ -1452,10 +1476,13 @@ class OdooSetCompanyView(TenantMixin, View):
         username = os.environ.get('ODOO_USERNAME', '').strip()
         password = os.environ.get('ODOO_PASSWORD', '')
         if not (url and db and username and password):
-            return JsonResponse(
-                {'error': 'Sin conexión guardada y sin ODOO_* en env. Crea la conexión en Admin o define variables.'},
-                status=400
-            )
+            err = 'Sin conexión guardada y sin ODOO_* en env. Crea la conexión en Admin o define variables.'
+            if request.headers.get('HX-Request'):
+                return HttpResponse(
+                    f'<div class="alert alert-warning text-sm mt-2" role="alert">{err}</div>',
+                    status=400,
+                )
+            return JsonResponse({'error': err}, status=400)
         connection = OdooConnection.objects.create(
             empresa=self.empresa,
             odoo_url=url,

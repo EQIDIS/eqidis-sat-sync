@@ -282,18 +282,20 @@
                     <span class="label-text text-xs font-medium">Empresa en Odoo (res.company)</span>
                 </label>
                 <div
+                    id="odoo-company-select-wrapper"
                     hx-get="{% url 'fiscal:odoo_companies_options' %}"
                     hx-trigger="load"
                     hx-target="#odoo-company-select"
                     hx-swap="innerHTML"
                 >
+                    <input type="hidden" id="odoo-set-company-csrf" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
                     <select
                         name="odoo_company_id"
                         id="odoo-company-select"
                         class="select select-bordered select-sm w-full max-w-md"
                         hx-post="{% url 'fiscal:odoo_set_company' %}"
                         hx-trigger="change delay:200ms"
-                        hx-include="this"
+                        hx-include="this, #odoo-set-company-csrf"
                         hx-target="#odoo-result"
                         hx-swap="innerHTML"
                         hx-indicator="#odoo-indicator"

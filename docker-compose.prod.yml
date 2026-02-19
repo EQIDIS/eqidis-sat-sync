@@ -1,6 +1,11 @@
 # Docker Compose para producción / Dokploy
 # Usar con: docker compose -f docker-compose.prod.yml --env-file .env up -d
 # Asegúrate de tener .env con todas las variables (ver .env.example).
+# Red explícita para que web, db y redis se resuelvan por nombre (db, redis).
+
+networks:
+  app_network:
+    driver: bridge
 
 services:
   web:
@@ -20,6 +25,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - app_network
     command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --threads 2 --timeout 120
 
   celery-worker:
@@ -35,6 +42,8 @@ services:
       - web
       - redis
       - db
+    networks:
+      - app_network
     command: celery -A config worker -l info
 
   celery-beat:
@@ -50,6 +59,8 @@ services:
       - web
       - redis
       - db
+    networks:
+      - app_network
     command: celery -A config beat -l info
 
   db:
@@ -62,6 +73,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app_network
     healthcheck:
       test:
         [
@@ -78,6 +91,8 @@ services:
     restart: unless-stopped
     volumes:
       - redis_data:/data
+    networks:
+      - app_network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s

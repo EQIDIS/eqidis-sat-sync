@@ -288,6 +288,21 @@ Si ves algo como:
 
 Guarda, reinicia/redeploy la aplicación y vuelve a probar.
 
+### "could not translate host name 'db' to address" (name resolution)
+
+El contenedor **web** no puede resolver el hostname `db`; suele pasar cuando los servicios del Compose no comparten la misma red en Dokploy.
+
+**Qué hacer:**
+
+1. **Red explícita en el Compose**  
+   El `docker-compose.prod.yml` del repo define una red `app_network` y todos los servicios (web, db, redis, celery-*) están en esa red. Sube los últimos cambios del repo, haz **redeploy** del Compose en Dokploy y prueba de nuevo.
+
+2. **Si sigue fallando**  
+   En Dokploy, revisa cómo se despliega el Compose:  
+   - ¿Ves varios contenedores/servicios (web, db, redis) para la misma aplicación?  
+   - En la configuración de la base de datos o en "Services", ¿te muestra un **hostname interno** o **connection string** para PostgreSQL?  
+   Usa ese hostname en **POSTGRES_HOST** (por ejemplo `aspeia_postgres` o el que indique Dokploy) en lugar de `db`.
+
 ---
 
 ## 8. Resumen de variables mínimas para producción

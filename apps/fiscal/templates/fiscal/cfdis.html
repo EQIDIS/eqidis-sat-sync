@@ -275,6 +275,7 @@
 
             <!-- Panel Odoo (multiempresa: selección de empresa en Odoo) -->
             <div class="divider my-4"></div>
+            <div id="config-odoo">
             <h4 class="font-medium text-sm mb-2">Odoo</h4>
             {% if odoo_can_configure %}
             <div class="form-control mb-3">
@@ -354,6 +355,7 @@
             {% elif not odoo_can_configure %}
             <p class="text-sm text-base-content/60">Configura la conexión Odoo desde el Admin de Django o define ODOO_URL, ODOO_DB, ODOO_USERNAME y ODOO_PASSWORD en variables de entorno.</p>
             {% endif %}
+            </div>
         </div>
     </div>
 

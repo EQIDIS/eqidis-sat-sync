@@ -242,11 +242,21 @@
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
     </svg>
     <h3 class="text-xl font-semibold mb-2">Sin CFDIs</h3>
-    <p class="text-base-content/60 mb-4">
-        No se encontraron comprobantes fiscales con los filtros seleccionados.
+    <p class="text-base-content/60 mb-2">
+        No hay comprobantes fiscales aún. Es normal en una instalación nueva o con filtros que no coinciden.
     </p>
-    <a href="{% url 'fiscal:descargas' %}" class="btn btn-primary btn-sm">
-        Descargar CFDIs del SAT
-    </a>
+    <p class="text-base-content/50 text-sm mb-4">
+        Descarga desde el SAT o importa desde Odoo usando la sección «Configuración de Sincronización» arriba.
+    </p>
+    <div class="flex flex-wrap gap-2 justify-center">
+        <a href="{% url 'fiscal:descargas' %}" class="btn btn-primary btn-sm">
+            Descargar CFDIs del SAT
+        </a>
+        {% if odoo_connection %}
+        <a href="{% url 'fiscal:cfdis' %}#config-odoo" class="btn btn-outline btn-sm">
+            Importar desde Odoo
+        </a>
+        {% endif %}
+    </div>
 </div>
 {% endif %}

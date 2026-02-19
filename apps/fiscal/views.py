@@ -1133,6 +1133,8 @@ class CfdiTablePartialView(TenantMixin, View):
         except EmptyPage:
             cfdis_page = paginator.page(paginator.num_pages)
 
+        from apps.integrations.odoo.models import OdooConnection
+        odoo_conn = OdooConnection.objects.filter(empresa=self.empresa).first()
         html = render_to_string('fiscal/partials/_cfdi_table.html', {
             'cfdis': cfdis_page,
             'filtros': {
@@ -1144,6 +1146,7 @@ class CfdiTablePartialView(TenantMixin, View):
                 'fecha_hasta': fecha_hasta,
             },
             'page_size': page_size,
+            'odoo_connection': odoo_conn,
         }, request=request)
 
         return HttpResponse(html)

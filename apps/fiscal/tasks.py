@@ -129,7 +129,9 @@ def verificar_solicitudes_pendientes():
             result = client.verificar_solicitud(solicitud.request_id_sat)
             
             estado = result.get('estado', '')
-            logger.info(f"Solicitud {solicitud.id}: estado={estado}")
+            cod_estatus = result.get('cod_estatus')
+            numero_cfdis = result.get('numero_cfdis')
+            logger.info(f"Solicitud {solicitud.id}: estado={estado}, cod_estatus={cod_estatus}, numero_cfdis={numero_cfdis}")
             
             # satcfdi devuelve:
             # 1 = Aceptada
@@ -153,13 +155,21 @@ def verificar_solicitudes_pendientes():
                         defaults={'status': 'pending'}
                     )
                 
-                # Encolar descarga de paquetes
+                # Encolar descarga de paquetes (solo si hay paquetes)
                 for pkg in solicitud.packages.filter(status='pending'):
                     descargar_paquete_sat.delay(pkg.id)
-                    
-            elif estado in ['Error', 'Rechazada', 'Rechazado', '4', '5', 4, 5]:
+
+            # Estado "Rechazada" / error real
+            elif estado in ['Error', 'Rechazada', 'Rechazado', '4', 4]:
                 solicitud.status = 'failed'
                 solicitud.sat_response_raw = str(result)
+                solicitud.save()
+
+            # Estado "5" con 0 CFDIs: aceptada sin resultados → no es error
+            elif estado in ['5', 5] and str(cod_estatus) == '5000' and (not numero_cfdis or int(numero_cfdis) == 0):
+                solicitud.status = 'downloaded'
+                solicitud.sat_response_raw = str(result)
+                solicitud.completed_at = timezone.now()
                 solicitud.save()
                 
             elif estado in ['Vencida', '6', 6]:

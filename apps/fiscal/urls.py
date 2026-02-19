@@ -14,6 +14,8 @@ urlpatterns = [
     # Vista Unificada de CFDIs
     path('cfdis/', views.CfdiListView.as_view(), name='cfdis'),
     path('cfdis/tabla/', views.CfdiTablePartialView.as_view(), name='cfdis_table'),
+    path('cfdis/stats/', views.CfdiStatsPartialView.as_view(), name='cfdis_stats'),
+    path('cfdis/solicitudes-recientes/', views.CfdiSolicitudesRecientesPartialView.as_view(), name='cfdis_solicitudes_recientes'),
     path('cfdis/reset/', views.ResetCfdisView.as_view(), name='reset_cfdis'),
     path('cfdis/sync-manual/', views.EjecutarSyncManualView.as_view(), name='sync_manual'),
     path('cfdis/odoo/test-connection/', views.OdooTestConnectionView.as_view(), name='odoo_test_connection'),

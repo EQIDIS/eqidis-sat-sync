@@ -1,0 +1,54 @@
+{% load humanize %}
+<div class="stats stats-vertical lg:stats-horizontal shadow w-full bg-base-100">
+    <div class="stat">
+        <div class="stat-figure text-primary">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+        </div>
+        <div class="stat-title">Total CFDIs</div>
+        <div class="stat-value text-primary">{{ stats.total|default:0 }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-figure text-success">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        </div>
+        <div class="stat-title">Vigentes</div>
+        <div class="stat-value text-success">{{ stats.vigentes|default:0 }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-figure text-error">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        </div>
+        <div class="stat-title">Cancelados</div>
+        <div class="stat-value text-error">{{ stats.cancelados|default:0 }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-figure text-info">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        </div>
+        <div class="stat-title">Total Vigente</div>
+        <div class="stat-value text-info text-2xl">${{ stats.total_monto|floatformat:0|intcomma|default:0 }}</div>
+        <div class="stat-desc">MXN</div>
+    </div>
+</div>
+<div class="flex flex-wrap gap-2 mb-6">
+    <div class="badge badge-lg badge-outline gap-1">
+        <span class="font-bold text-success">I</span> Ingresos: {{ stats.ingresos|default:0 }}
+    </div>
+    <div class="badge badge-lg badge-outline gap-1">
+        <span class="font-bold text-error">E</span> Egresos: {{ stats.egresos|default:0 }}
+    </div>
+    <div class="badge badge-lg badge-outline gap-1">
+        <span class="font-bold text-info">P</span> Pagos: {{ stats.pagos|default:0 }}
+    </div>
+    <div class="badge badge-lg badge-outline gap-1">
+        <span class="font-bold text-warning">T</span> Traslados: {{ stats.traslados|default:0 }}
+    </div>
+</div>

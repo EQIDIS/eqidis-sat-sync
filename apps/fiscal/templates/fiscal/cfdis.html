@@ -56,61 +56,15 @@
     </div>
     {% endif %}
 
-    <!-- Stats Cards -->
-    <div id="stats-container" class="stats stats-vertical lg:stats-horizontal shadow w-full mb-6 bg-base-100">
-        <div class="stat">
-            <div class="stat-figure text-primary">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-            </div>
-            <div class="stat-title">Total CFDIs</div>
-            <div class="stat-value text-primary">{{ stats.total|default:0 }}</div>
-        </div>
-        <div class="stat">
-            <div class="stat-figure text-success">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-            </div>
-            <div class="stat-title">Vigentes</div>
-            <div class="stat-value text-success">{{ stats.vigentes|default:0 }}</div>
-        </div>
-        <div class="stat">
-            <div class="stat-figure text-error">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-            </div>
-            <div class="stat-title">Cancelados</div>
-            <div class="stat-value text-error">{{ stats.cancelados|default:0 }}</div>
-        </div>
-        <div class="stat">
-            <div class="stat-figure text-info">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-            </div>
-            <div class="stat-title">Total Vigente</div>
-            <div class="stat-value text-info text-2xl">${{ stats.total_monto|floatformat:0|intcomma|default:0 }}</div>
-            <div class="stat-desc">MXN</div>
-        </div>
-    </div>
-
-    <!-- Mini stats por tipo -->
-    <div class="flex flex-wrap gap-2 mb-6">
-        <div class="badge badge-lg badge-outline gap-1">
-            <span class="font-bold text-success">I</span> Ingresos: {{ stats.ingresos|default:0 }}
-        </div>
-        <div class="badge badge-lg badge-outline gap-1">
-            <span class="font-bold text-error">E</span> Egresos: {{ stats.egresos|default:0 }}
-        </div>
-        <div class="badge badge-lg badge-outline gap-1">
-            <span class="font-bold text-info">P</span> Pagos: {{ stats.pagos|default:0 }}
-        </div>
-        <div class="badge badge-lg badge-outline gap-1">
-            <span class="font-bold text-warning">T</span> Traslados: {{ stats.traslados|default:0 }}
-        </div>
+    <!-- Stats Cards (se actualizan solas cada 12s y al disparar refreshCfdis) -->
+    <div
+        id="stats-container"
+        class="mb-6"
+        hx-get="{% url 'fiscal:cfdis_stats' %}"
+        hx-trigger="every 12s, refreshCfdis from:body"
+        hx-swap="innerHTML"
+    >
+        {% include "fiscal/partials/cfdis_stats.html" %}
     </div>
 
     <!-- Configuracion de Sync (Collapsible) -->
@@ -231,47 +185,17 @@
                 </div>
             </form>
 
-            <!-- Solicitudes Recientes -->
-            {% if solicitudes_recientes %}
+            <!-- Solicitudes Recientes (se actualizan solas cada 10s y al disparar refreshCfdis) -->
             <div class="divider my-4"></div>
             <h4 class="font-medium text-sm mb-2">Ultimas descargas</h4>
-            <div class="overflow-x-auto">
-                <table class="table table-xs">
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Tipo</th>
-                            <th>Rango</th>
-                            <th>Estado</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for sol in solicitudes_recientes %}
-                        <tr>
-                            <td class="font-mono">{{ sol.created_at|date:"d/m H:i" }}</td>
-                            <td>
-                                {% if sol.tipo == 'emitidos' %}
-                                <span class="badge badge-info badge-xs">Emitidos</span>
-                                {% else %}
-                                <span class="badge badge-success badge-xs">Recibidos</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-xs">{{ sol.fecha_inicio|date:"d/m" }} - {{ sol.fecha_fin|date:"d/m" }}</td>
-                            <td>
-                                {% if sol.status == 'downloaded' %}
-                                <span class="badge badge-success badge-xs">OK</span>
-                                {% elif sol.status == 'failed' %}
-                                <span class="badge badge-error badge-xs">Error</span>
-                                {% else %}
-                                <span class="loading loading-spinner loading-xs"></span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <div
+                id="solicitudes-recientes-container"
+                hx-get="{% url 'fiscal:cfdis_solicitudes_recientes' %}"
+                hx-trigger="every 10s, refreshCfdis from:body"
+                hx-swap="innerHTML"
+            >
+                {% include "fiscal/partials/cfdis_solicitudes_recientes.html" %}
             </div>
-            {% endif %}
 
             <!-- Panel Odoo (multiempresa: selección de empresa en Odoo) -->
             <div class="divider my-4"></div>
@@ -354,7 +278,7 @@
                 id="odoo-logs-container"
                 class="overflow-x-auto max-h-40 overflow-y-auto"
                 hx-get="{% url 'fiscal:sync_semanal_logs' %}?tipo=odoo"
-                hx-trigger="load"
+                hx-trigger="load, every 15s"
                 hx-swap="innerHTML"
             >
                 <span class="loading loading-spinner loading-xs"></span>
@@ -504,7 +428,13 @@
                 </div>
             </div>
 
-            <div id="cfdi-table-container">
+            <div
+                id="cfdi-table-container"
+                hx-get="{% url 'fiscal:cfdis_table' %}"
+                hx-include="#filtros-form, select[name=page_size]"
+                hx-trigger="refreshCfdis from:body"
+                hx-swap="innerHTML"
+            >
                 {% include "fiscal/partials/_cfdi_table.html" %}
             </div>
         </div>

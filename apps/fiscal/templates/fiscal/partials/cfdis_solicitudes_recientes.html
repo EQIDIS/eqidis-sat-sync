@@ -1,0 +1,36 @@
+<div class="overflow-x-auto">
+    <table class="table table-xs">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Rango</th>
+                <th>Estado</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sol in solicitudes_recientes %}
+            <tr>
+                <td class="font-mono">{{ sol.created_at|date:"d/m H:i" }}</td>
+                <td>
+                    {% if sol.tipo == 'emitidos' %}
+                    <span class="badge badge-info badge-xs">Emitidos</span>
+                    {% else %}
+                    <span class="badge badge-success badge-xs">Recibidos</span>
+                    {% endif %}
+                </td>
+                <td class="text-xs">{{ sol.fecha_inicio|date:"d/m" }} - {{ sol.fecha_fin|date:"d/m" }}</td>
+                <td>
+                    {% if sol.status == 'downloaded' %}
+                    <span class="badge badge-success badge-xs">OK</span>
+                    {% elif sol.status == 'failed' %}
+                    <span class="badge badge-error badge-xs">Error</span>
+                    {% else %}
+                    <span class="loading loading-spinner loading-xs"></span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

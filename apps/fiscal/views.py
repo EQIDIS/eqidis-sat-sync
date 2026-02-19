@@ -540,9 +540,12 @@ class ValidarEstadoCfdiView(TenantMixin, View):
             
             # Si es request HTMX, devolver partial template
             if request.headers.get('HX-Request'):
+                import json
                 from django.template.loader import render_to_string
                 html = render_to_string('fiscal/partials/cfdi_row.html', {'cfdi': cfdi})
-                return HttpResponse(html)
+                resp = HttpResponse(html)
+                resp['HX-Trigger'] = json.dumps({'refreshCfdis': True})  # actualizar stats
+                return resp
             
             # Fallback JSON for non-HTMX
             from django.http import JsonResponse
@@ -1153,6 +1156,51 @@ class CfdiTablePartialView(TenantMixin, View):
 
 
 @method_decorator(login_required, name='dispatch')
+class CfdiStatsPartialView(TenantMixin, View):
+    """Vista parcial HTMX para las estadísticas de CFDIs (polling / refresh)."""
+
+    def get(self, request, *args, **kwargs):
+        from django.template.loader import render_to_string
+        from django.db.models import Sum
+        from .models import CfdiDocument
+
+        all_cfdis = CfdiDocument.objects.filter(company=self.empresa)
+        stats = {
+            'total': all_cfdis.count(),
+            'vigentes': all_cfdis.filter(estado_sat='Vigente').count(),
+            'cancelados': all_cfdis.filter(estado_sat='Cancelado').count(),
+            'ingresos': all_cfdis.filter(tipo_cfdi='I').count(),
+            'egresos': all_cfdis.filter(tipo_cfdi='E').count(),
+            'pagos': all_cfdis.filter(tipo_cfdi='P').count(),
+            'traslados': all_cfdis.filter(tipo_cfdi='T').count(),
+            'total_monto': all_cfdis.filter(estado_sat='Vigente').aggregate(
+                total=Sum('total')
+            )['total'] or 0,
+        }
+        html = render_to_string('fiscal/partials/cfdis_stats.html', {'stats': stats}, request=request)
+        return HttpResponse(html)
+
+
+@method_decorator(login_required, name='dispatch')
+class CfdiSolicitudesRecientesPartialView(TenantMixin, View):
+    """Vista parcial HTMX para la tabla de últimas descargas (polling / refresh)."""
+
+    def get(self, request, *args, **kwargs):
+        from django.template.loader import render_to_string
+        from .models import CfdiDownloadRequest
+
+        solicitudes_recientes = CfdiDownloadRequest.objects.filter(
+            company=self.empresa
+        ).order_by('-created_at')[:5]
+        html = render_to_string(
+            'fiscal/partials/cfdis_solicitudes_recientes.html',
+            {'solicitudes_recientes': solicitudes_recientes},
+            request=request,
+        )
+        return HttpResponse(html)
+
+
+@method_decorator(login_required, name='dispatch')
 @method_decorator(require_POST, name='dispatch')
 class ResetCfdisView(TenantMixin, View):
     """
@@ -1210,7 +1258,7 @@ class ResetCfdisView(TenantMixin, View):
                     'message': f'Se eliminaron {cfdis_count} CFDIs y logs asociados',
                     'type': 'success'
                 },
-                'refreshStats': True
+                'refreshCfdis': True
             })
             return response
 
@@ -1278,7 +1326,8 @@ class EjecutarSyncManualView(TenantMixin, View):
         if sync_settings and sync_settings.sync_to_odoo_enabled:
             odoo_msg = " La sincronización a Odoo se ejecutará automáticamente al completar."
 
-        return HttpResponse(f'''
+        import json
+        resp = HttpResponse(f'''
             <div class="alert alert-success mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 <div>
@@ -1289,6 +1338,8 @@ class EjecutarSyncManualView(TenantMixin, View):
                 </div>
             </div>
         ''')
+        resp['HX-Trigger'] = json.dumps({'refreshCfdis': True})
+        return resp
 
 
 # =============================================================================
@@ -1522,6 +1573,7 @@ class OdooImportView(TenantMixin, View):
 
     def post(self, request, *args, **kwargs):
         import base64
+        import json
         from .models import CfdiDocument
         from apps.integrations.odoo.models import OdooConnection, OdooSyncLog
         from apps.fiscal.odoo.client import create_client_from_connection, OdooClientError
@@ -1606,7 +1658,9 @@ class OdooImportView(TenantMixin, View):
             '''
             if errors:
                 html += f'<div class="alert alert-warning"><pre class="text-xs">{chr(10).join(errors[:5])}</pre></div>'
-            return HttpResponse(html)
+            resp = HttpResponse(html)
+            resp['HX-Trigger'] = json.dumps({'refreshCfdis': True})
+            return resp
 
         except OdooClientError as e:
             return HttpResponse(f'<div class="alert alert-error">{e}</div>')
@@ -1618,6 +1672,7 @@ class OdooExportView(TenantMixin, View):
     """Sincroniza CFDIs de Aspeia hacia Odoo (HTMX)."""
 
     def post(self, request, *args, **kwargs):
+        import json
         from django.core.files.storage import default_storage
         from django.utils import timezone
         from .models import CfdiDocument
@@ -1642,12 +1697,14 @@ class OdooExportView(TenantMixin, View):
         ).exclude(uuid__in=synced_uuids)[:50]
 
         if not pending_cfdis.exists():
-            return HttpResponse('''
+            resp = HttpResponse('''
                 <div class="alert alert-info shadow-lg">
                     <h3 class="font-bold">Sin CFDIs pendientes</h3>
                     <p class="text-sm">Todos los CFDIs ya están sincronizados con Odoo.</p>
                 </div>
             ''')
+            resp['HX-Trigger'] = json.dumps({'refreshCfdis': True})
+            return resp
 
         synced = 0
         exists = 0
@@ -1691,5 +1748,7 @@ class OdooExportView(TenantMixin, View):
             html += f'<div class="alert alert-info mb-4">Quedan {remaining} CFDIs pendientes. Haz clic de nuevo para continuar.</div>'
         if errors:
             html += f'<div class="alert alert-warning"><pre class="text-xs">{chr(10).join(errors[:5])}</pre></div>'
-        return HttpResponse(html)
+        resp = HttpResponse(html)
+        resp['HX-Trigger'] = json.dumps({'refreshCfdis': True})
+        return resp
 

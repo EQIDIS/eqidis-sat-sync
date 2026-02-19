@@ -6,6 +6,7 @@
                 <th>Tipo</th>
                 <th>Rango</th>
                 <th>Estado</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
@@ -28,6 +29,17 @@
                     {% else %}
                     <span class="loading loading-spinner loading-xs"></span>
                     {% endif %}
+                </td>
+                <td>
+                    <button
+                        type="button"
+                        class="btn btn-ghost btn-xs"
+                        hx-get="/fiscal/cfdis/solicitudes/{{ sol.id }}/detalle/"
+                        hx-target="#cfdis-solicitud-detalle"
+                        hx-swap="innerHTML"
+                    >
+                        Ver detalle
+                    </button>
                 </td>
             </tr>
             {% endfor %}

@@ -56,9 +56,17 @@ class XMLSigner:
         key_content = self._read_s3_file(self.certificate.s3_key_path)
         
         # Desencriptar contraseña
+        if not (self.certificate.encrypted_password or self.certificate.encrypted_password.strip()):
+            raise ValueError(
+                "La contraseña del certificado no está guardada. "
+                "Suba de nuevo la FIEL desde la app (Fiscal → certificados) e ingrese la contraseña al subirla."
+            )
         password = self.certificate.password
         if not password:
-            raise ValueError("No se pudo obtener la contraseña del certificado")
+            raise ValueError(
+                "No se pudo desencriptar la contraseña del certificado. "
+                "Asegúrese de que DJANGO_SECRET_KEY sea idéntica en la aplicación web y en el worker de Celery (mismo .env)."
+            )
         
         # El archivo .key del SAT está en formato PKCS#8 DER encriptado
         self._private_key = serialization.load_der_private_key(

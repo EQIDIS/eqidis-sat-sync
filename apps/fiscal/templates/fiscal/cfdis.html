@@ -185,17 +185,20 @@
                 </div>
             </form>
 
-            <!-- Solicitudes Recientes (se actualizan solas cada 10s y al disparar refreshCfdis) -->
+            <!-- Solicitudes Recientes (se actualizan solas y permiten ver detalle) -->
+            {% if solicitudes_recientes %}
             <div class="divider my-4"></div>
             <h4 class="font-medium text-sm mb-2">Ultimas descargas</h4>
             <div
                 id="solicitudes-recientes-container"
                 hx-get="{% url 'fiscal:cfdis_solicitudes_recientes' %}"
-                hx-trigger="every 10s, refreshCfdis from:body"
+                hx-trigger="load, every 10s, refreshCfdis from:body"
                 hx-swap="innerHTML"
             >
                 {% include "fiscal/partials/cfdis_solicitudes_recientes.html" %}
             </div>
+            <div id="cfdis-solicitud-detalle" class="mt-3 text-sm"></div>
+            {% endif %}
 
             <!-- Panel Odoo (multiempresa: selección de empresa en Odoo) -->
             <div class="divider my-4"></div>

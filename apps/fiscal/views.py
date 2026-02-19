@@ -1201,6 +1201,32 @@ class CfdiSolicitudesRecientesPartialView(TenantMixin, View):
 
 
 @method_decorator(login_required, name='dispatch')
+class CfdiDownloadRequestDetailPartialView(TenantMixin, View):
+    """Detalle compacto de una solicitud de descarga SAT (para panel en CFDIs)."""
+
+    def get(self, request, pk, *args, **kwargs):
+        from django.template.loader import render_to_string
+        from .models import CfdiDownloadRequest, SatDownloadPackage
+
+        solicitud = get_object_or_404(
+            CfdiDownloadRequest,
+            id=pk,
+            company=self.empresa,
+        )
+        packages = SatDownloadPackage.objects.filter(request=solicitud).order_by('id')
+
+        html = render_to_string(
+            'fiscal/partials/cfdis_solicitud_detalle.html',
+            {
+                'solicitud': solicitud,
+                'packages': packages,
+            },
+            request=request,
+        )
+        return HttpResponse(html)
+
+
+@method_decorator(login_required, name='dispatch')
 @method_decorator(require_POST, name='dispatch')
 class ResetCfdisView(TenantMixin, View):
     """

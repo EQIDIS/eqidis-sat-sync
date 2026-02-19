@@ -1,9 +1,13 @@
 import base64
-from cryptography.fernet import Fernet
+import logging
+from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from django.conf import settings
 from django.utils.encoding import force_bytes, force_str
+
+logger = logging.getLogger(__name__)
+
 
 class ModelEncryption:
     """
@@ -40,5 +44,12 @@ class ModelEncryption:
         f = cls.get_fernet()
         try:
             return force_str(f.decrypt(force_bytes(ciphertext)))
-        except Exception:
+        except InvalidToken:
+            logger.warning(
+                "ModelEncryption.decrypt failed (InvalidToken). "
+                "Ensure DJANGO_SECRET_KEY is the same in the web app and Celery worker (same .env)."
+            )
+            return None
+        except Exception as e:
+            logger.warning("ModelEncryption.decrypt failed: %s", e)
             return None

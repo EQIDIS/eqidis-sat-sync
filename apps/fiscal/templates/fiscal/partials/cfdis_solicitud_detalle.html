@@ -1,0 +1,114 @@
+<div class="card bg-base-100 shadow-sm">
+    <div class="card-body px-4 py-3">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+            <div>
+                <p class="text-xs text-base-content/60">Solicitud #{{ solicitud.id }}</p>
+                <p class="text-sm">
+                    {{ solicitud.fecha_inicio|date:"d/m/Y" }} - {{ solicitud.fecha_fin|date:"d/m/Y" }}
+                    <span class="badge badge-xs ml-1">
+                        {% if solicitud.tipo == 'emitidos' %}Emitidos{% else %}Recibidos{% endif %}
+                    </span>
+                </p>
+            </div>
+            <div class="flex flex-wrap gap-2 items-center">
+                {% if solicitud.status == 'downloaded' %}
+                <span class="badge badge-success badge-sm">Descargado</span>
+                {% elif solicitud.status == 'failed' %}
+                <span class="badge badge-error badge-sm">Fallido</span>
+                {% elif solicitud.status == 'ready' %}
+                <span class="badge badge-info badge-sm">Listo</span>
+                {% else %}
+                <span class="badge badge-ghost badge-sm">{{ solicitud.get_status_display }}</span>
+                {% endif %}
+                {% if solicitud.is_auto_generated %}
+                <span class="badge badge-ghost badge-sm">Auto</span>
+                {% else %}
+                <span class="badge badge-outline badge-sm">Manual</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs mb-3">
+            <div>
+                <p class="text-base-content/60">Creada</p>
+                <p class="font-mono">{{ solicitud.created_at|date:"d/m/Y H:i" }}</p>
+            </div>
+            <div>
+                <p class="text-base-content/60">ID Solicitud SAT</p>
+                <p class="font-mono break-all">{{ solicitud.request_id_sat|default:"-" }}</p>
+            </div>
+            <div>
+                <p class="text-base-content/60">Usuario</p>
+                <p class="font-mono truncate">
+                    {% if solicitud.requested_by %}
+                        {{ solicitud.requested_by.email|default:solicitud.requested_by.username }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+
+        {% if solicitud.sat_response_raw %}
+        <div class="mb-3">
+            <p class="text-xs font-semibold mb-1">Última respuesta SAT (cruda)</p>
+            <pre class="bg-base-200 text-xs p-2 rounded max-h-40 overflow-auto whitespace-pre-wrap">{{ solicitud.sat_response_raw }}</pre>
+        </div>
+        {% endif %}
+
+        {% if packages %}
+        <div class="mt-2">
+            <p class="text-xs font-semibold mb-1">Paquetes SAT</p>
+            <div class="overflow-x-auto">
+                <table class="table table-compact table-zebra text-xs">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Paquete SAT</th>
+                            <th>Estado</th>
+                            <th>CFDIs</th>
+                            <th>Intentos</th>
+                            <th>Error</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pkg in packages %}
+                        <tr>
+                            <td class="font-mono">{{ pkg.id }}</td>
+                            <td class="font-mono text-[10px]">{{ pkg.package_id_sat }}</td>
+                            <td>
+                                {% if pkg.status == 'completed' %}
+                                <span class="badge badge-success badge-xs">Completado</span>
+                                {% elif pkg.status == 'downloaded' %}
+                                <span class="badge badge-info badge-xs">Descargado</span>
+                                {% elif pkg.status == 'processing' %}
+                                <span class="badge badge-warning badge-xs">Procesando</span>
+                                {% elif pkg.status == 'failed' %}
+                                <span class="badge badge-error badge-xs">Fallido</span>
+                                {% else %}
+                                <span class="badge badge-ghost badge-xs">{{ pkg.get_status_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="font-mono text-center">
+                                {{ pkg.cfdi_processed }}/{{ pkg.cfdi_count }}
+                            </td>
+                            <td class="font-mono text-center">{{ pkg.retry_count }}</td>
+                            <td class="max-w-xs">
+                                {% if pkg.error_message %}
+                                <span class="text-error" title="{{ pkg.error_message }}">{{ pkg.error_message|truncatechars:80 }}</span>
+                                {% else %}
+                                <span class="text-base-content/40">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <p class="text-xs text-base-content/60 mt-1">No se han generado paquetes SAT para esta solicitud (puede seguir en estado &ldquo;Solicitado&rdquo; o &ldquo;Listo&rdquo;).</p>
+        {% endif %}
+    </div>
+</div>
+

@@ -38,11 +38,20 @@ if not ALLOWED_HOSTS and DEBUG:
     ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
 # HTTPS/CSRF (necesario cuando se sirve tras proxy, ej. Dokploy)
-CSRF_TRUSTED_ORIGINS = [
+_raw_origins = [
     origin.strip()
     for origin in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',')
     if origin.strip()
 ]
+if _raw_origins:
+    CSRF_TRUSTED_ORIGINS = _raw_origins
+else:
+    # Fallback: derivar de ALLOWED_HOSTS para evitar 403 por CSRF en producción
+    CSRF_TRUSTED_ORIGINS = [
+        f'https://{h}' for h in ALLOWED_HOSTS if h and not h.startswith(('127.', 'localhost'))
+    ] + [
+        f'http://{h}' for h in ALLOWED_HOSTS if h and not h.startswith(('127.', 'localhost'))
+    ]
 
 
 # Application definition

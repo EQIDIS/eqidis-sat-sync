@@ -303,6 +303,29 @@ El contenedor **web** no puede resolver el hostname `db`; suele pasar cuando los
    - En la configuración de la base de datos o en "Services", ¿te muestra un **hostname interno** o **connection string** para PostgreSQL?  
    Usa ese hostname en **POSTGRES_HOST** (por ejemplo `aspeia_postgres` o el que indique Dokploy) en lugar de `db`.
 
+### No puedo seleccionar empresa en Odoo / El botón "Sincronizar a Odoo" está bloqueado (/fiscal/cfdis/)
+
+**Síntomas:** En **CFDIs** → Configuración de Sincronización → Odoo: el desplegable "Empresa en Odoo" no muestra empresas (dice "Sin conexión Odoo" o "Error al cargar empresas") o el toggle **Sincronizar a Odoo** y los botones Importar/Exportar están deshabilitados.
+
+**Causas y soluciones:**
+
+1. **Variables Odoo no definidas en producción**  
+   El selector de empresa y la creación de conexión usan **ODOO_URL**, **ODOO_DB**, **ODOO_USERNAME** y **ODOO_PASSWORD**. Si falta alguna en las variables de entorno del despliegue, la app no puede conectar a Odoo ni listar empresas.  
+   **Solución:** En Dokploy (o tu entorno), configura las cuatro variables. Luego recarga la página `/fiscal/cfdis/`.
+
+2. **No existe conexión Odoo para tu empresa**  
+   El toggle "Sincronizar a Odoo" y los botones solo se habilitan cuando existe una **Conexión Odoo** guardada para la empresa actual.  
+   **Solución (recomendada):**  
+   - Asegura que las 4 variables Odoo estén definidas.  
+   - En CFDIs, abre "Configuración de Sincronización" y en la sección Odoo elige una **Empresa en Odoo** en el desplegable. Al guardar, se crea la conexión y la página se recarga; el toggle y los botones quedarán habilitados.  
+   **Alternativa:** Crear la conexión desde el servidor:  
+   `python manage.py sync_odoo_from_env`  
+   (opcional: `ODOO_EMPRESA_ID=<id_empresa_aspeia>`). Luego recarga la app y, si usas multiempresa, asigna la empresa Odoo en el desplegable.
+
+3. **"Error al cargar empresas"**  
+   Las variables están definidas pero la autenticación o la llamada a Odoo falla (URL incorrecta, DB, usuario/contraseña, o red/firewall).  
+   **Solución:** Revisa URL, base de datos, usuario y contraseña. Comprueba que el servidor donde corre la app pueda alcanzar Odoo (puertos, firewall). Revisa logs del contenedor web si hay más detalle del error.
+
 ---
 
 ## 8. Resumen de variables mínimas para producción

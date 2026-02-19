@@ -277,6 +277,11 @@
             <div class="divider my-4"></div>
             <div id="config-odoo">
             <h4 class="font-medium text-sm mb-2">Odoo</h4>
+            {% if not odoo_connection and odoo_can_configure %}
+            <div class="alert alert-info text-sm mb-3">
+                <span class="label-text">Primero selecciona la <strong>Empresa en Odoo</strong> abajo. Así se crea la conexión y se habilitan el toggle &quot;Sincronizar a Odoo&quot; y los botones Importar/Exportar.</span>
+            </div>
+            {% endif %}
             {% if odoo_can_configure %}
             <div class="form-control mb-3">
                 <label class="label py-1">
@@ -306,6 +311,9 @@
                 </div>
                 <p class="text-xs text-base-content/50 mt-1">Selecciona a qué empresa de Odoo se vincula esta empresa de Aspeia. Puedes cambiar de empresa en el selector superior y configurar cada una.</p>
             </div>
+            {% endif %}
+            {% if odoo_can_configure %}
+            <div id="odoo-result" class="min-h-0 mt-2"></div>
             {% endif %}
             {% if odoo_connection %}
             <div class="flex flex-wrap gap-2 mb-3">
@@ -341,7 +349,6 @@
                 </button>
                 <span id="odoo-indicator" class="loading loading-spinner loading-sm htmx-indicator"></span>
             </div>
-            <div id="odoo-result"></div>
             <h5 class="font-medium text-xs mt-3 mb-1">Últimas sincronizaciones Odoo</h5>
             <div
                 id="odoo-logs-container"

@@ -1465,11 +1465,15 @@ class OdooSetCompanyView(TenantMixin, View):
             connection.odoo_company_id = odoo_company_id
             connection.save()
             if request.headers.get('HX-Request'):
-                resp = HttpResponse(status=204)
+                resp = HttpResponse(
+                    '<div class="alert alert-success text-sm mt-2" role="alert">Empresa Odoo actualizada. Recargando…</div>',
+                    status=200,
+                )
                 resp['HX-Trigger'] = json.dumps({
                     'showToast': {'message': 'Empresa Odoo actualizada', 'type': 'success'},
                     'odooCompanyUpdated': True,
                 })
+                resp['HX-Refresh'] = 'true'  # Recargar para habilitar toggle y botones
                 return resp
             return JsonResponse({'success': True, 'message': 'Empresa Odoo actualizada'})
 
@@ -1498,11 +1502,15 @@ class OdooSetCompanyView(TenantMixin, View):
         connection.set_password(password)
         connection.save()
         if request.headers.get('HX-Request'):
-            resp = HttpResponse(status=204)
+            resp = HttpResponse(
+                '<div class="alert alert-success text-sm mt-2" role="alert">Conexión Odoo creada. Recargando…</div>',
+                status=200,
+            )
             resp['HX-Trigger'] = json.dumps({
                 'showToast': {'message': 'Conexión Odoo creada y empresa asignada', 'type': 'success'},
                 'odooCompanyUpdated': True,
             })
+            resp['HX-Refresh'] = 'true'  # Recargar para mostrar toggle y botones Import/Export
             return resp
         return JsonResponse({'success': True, 'message': 'Conexión creada y empresa asignada'})
 

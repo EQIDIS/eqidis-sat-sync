@@ -1393,6 +1393,30 @@ class OdooTestConnectionView(TenantMixin, View):
             })
             return response
 
+        # Check for decryption failure (InvalidToken)
+        password_raw = connection.password
+        if password_raw is None:
+            # Auto-healing: Try to recover using ODOO_PASSWORD from environment
+            import os
+            env_password = os.environ.get('ODOO_PASSWORD', '').strip()
+            if env_password:
+                connection.set_password(env_password)
+                connection.save()
+                password_raw = connection.password  # Try again after healing
+                if password_raw:
+                    messages.info(request, "Conexión recuperada automáticamente desde variables de entorno.")
+
+        if password_raw is None:
+            msg = 'Error de encriptación: La contraseña no pudo ser recuperada (posible cambio de SECRET_KEY). Por favor, usa el formulario de "Actualizar Contraseña" abajo.'
+            connection.status = 'error'
+            connection.last_error = 'Decryption failed (InvalidToken)'
+            connection.save()
+            response = HttpResponse(f'<div class="alert alert-error">{msg}</div>')
+            response['HX-Trigger'] = json.dumps({
+                'showToast': {'message': msg, 'type': 'error'}
+            })
+            return response
+
         try:
             client = create_client_from_connection(connection)
             version = client.get_version()
@@ -1400,11 +1424,28 @@ class OdooTestConnectionView(TenantMixin, View):
             connection.last_error = None
             connection.save()
             messages.success(request, f'Conexión exitosa a Odoo {version.get("server_version", "")}')
-        except OdooClientError as e:
+        except Exception as e:
+            full_error = str(e)
+            
+            # Default fallback clean error
+            clean_error = full_error.split('^^^^')[0].strip().split('\n')[-1].strip()
+            
+            # Special case for the Odoo traceback sent by the user
+            if "scope and key required" in full_error:
+                clean_error = "Credenciales incompletas o inválidas enviadas a Odoo (la contraseña está vacía)."
+            elif "xmlrpc.client.Fault" in full_error or "Traceback" in full_error:
+                # If it's a multi-line traceback, take the last non-empty line
+                lines = [l.strip() for l in full_error.split('\n') if l.strip()]
+                if lines:
+                    clean_error = f"Odoo reportó: {lines[-1]}"
+            
+            if not clean_error or len(clean_error) < 5:
+                clean_error = full_error.replace('^', '').strip()[:100]
+
             connection.status = 'error'
-            connection.last_error = str(e)
+            connection.last_error = full_error
             connection.save()
-            messages.error(request, f'Error de conexión: {e}')
+            messages.error(request, f'Error de conexión: {clean_error}')
 
         response = HttpResponse()
         response['HX-Refresh'] = 'true'
@@ -1590,6 +1631,36 @@ class OdooSetCompanyView(TenantMixin, View):
             resp['HX-Refresh'] = 'true'  # Recargar para mostrar toggle y botones Import/Export
             return resp
         return JsonResponse({'success': True, 'message': 'Conexión creada y empresa asignada'})
+
+
+@method_decorator(login_required, name='dispatch')
+@method_decorator(require_POST, name='dispatch')
+class OdooUpdatePasswordView(TenantMixin, View):
+    """Actualiza la contraseña de Odoo para la empresa actual."""
+
+    def post(self, request, *args, **kwargs):
+        import json
+        from apps.integrations.odoo.models import OdooConnection
+
+        password = request.POST.get('odoo_password', '').strip()
+        if not password:
+            msg = 'Ingresa una contraseña válida'
+            return HttpResponse(f'<div class="alert alert-warning text-sm mt-2">{msg}</div>', status=400)
+
+        connection = OdooConnection.objects.filter(empresa=self.empresa).first()
+        if not connection:
+            return HttpResponse('<div class="alert alert-error text-sm mt-2">No hay conexión configurada</div>', status=404)
+
+        connection.set_password(password)
+        connection.status = 'inactive'  # Reset status to inactive until next test
+        connection.save()
+
+        msg = 'Contraseña actualizada correctamente. Prueba la conexión ahora.'
+        resp = HttpResponse(f'<div class="alert alert-success text-sm mt-2">{msg}</div>')
+        resp['HX-Trigger'] = json.dumps({
+            'showToast': {'message': msg, 'type': 'success'}
+        })
+        return resp
 
 
 @method_decorator(login_required, name='dispatch')

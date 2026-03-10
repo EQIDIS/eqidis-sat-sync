@@ -23,6 +23,7 @@ urlpatterns = [
     path('cfdis/odoo/companies/', views.OdooCompaniesJsonView.as_view(), name='odoo_companies_json'),
     path('cfdis/odoo/companies/options/', views.OdooCompaniesOptionsView.as_view(), name='odoo_companies_options'),
     path('cfdis/odoo/set-company/', views.OdooSetCompanyView.as_view(), name='odoo_set_company'),
+    path('cfdis/odoo/update-password/', views.OdooUpdatePasswordView.as_view(), name='odoo_update_password'),
     path('cfdis/odoo/import/', views.OdooImportView.as_view(), name='odoo_import'),
     path('cfdis/odoo/export/', views.OdooExportView.as_view(), name='odoo_export'),
     path('cfdis/odoo/sync-all/', views.OdooExportView.as_view(), name='odoo_sync_all'),

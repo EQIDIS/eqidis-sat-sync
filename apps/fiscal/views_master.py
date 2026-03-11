@@ -546,6 +546,7 @@ class MasterPanelDescargasEliminarView(View):
     """
     def post(self, request, *args, **kwargs):
         from .models import CfdiDownloadRequest, CfdiDocument, CfdiStateCheck, SatDownloadPackage
+        from apps.integrations.odoo.models import OdooSyncLog
         from django.db import transaction
         import boto3
         
@@ -560,6 +561,7 @@ class MasterPanelDescargasEliminarView(View):
             packages_qs = SatDownloadPackage.objects.all()
             requests_qs = CfdiDownloadRequest.objects.all()
             state_checks_qs = CfdiStateCheck.objects.all()
+            sync_logs_qs = OdooSyncLog.objects.all()
             
             # Filtro por empresa si existe
             if company_id:
@@ -597,6 +599,9 @@ class MasterPanelDescargasEliminarView(View):
             
             # 3. Borrado en Cascada de la Base de Datos
             with transaction.atomic():
+                # Borrar logs de sincronizacion Odoo
+                sync_logs_count, _ = sync_logs_qs.delete()
+                
                 # Borrar verificaciones de estado
                 state_checks_qs.delete()
                 
@@ -607,7 +612,7 @@ class MasterPanelDescargasEliminarView(View):
                 reqs_count, _ = requests_qs.delete()
             
             target = f"la Empresa ID {company_id}" if company_id else "TODAS las empresas"
-            messages.success(request, f"Purga de {target} Exitosa: Se eliminaron {reqs_count} historiales SAT, {cfdis_count} XMLs y todos sus archivos de Amazon S3.")
+            messages.success(request, f"Purga de {target} Exitosa: Se eliminaron {reqs_count} historiales SAT, {cfdis_count} XMLs y {sync_logs_count} Logs de Odoo con sus archivos de Amazon S3.")
             
         except Exception as e:
             logger.error(f"Error crítico en Super Purge del Panel Maestro: {e}")

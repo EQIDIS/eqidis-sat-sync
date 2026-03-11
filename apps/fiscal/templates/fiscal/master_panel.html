@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{% block title %}Panel Maestro | Aspeya Finance{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-base-200">
+  <!-- Navbar Principal -->
+  <div class="navbar bg-base-100 shadow-sm px-8">
+    <div class="flex-1">
+      <h1 class="font-bold text-2xl text-primary">Aspeia Finance - Panel Maestro</h1>
+    </div>
+    <div class="flex-none gap-2">
+      <div class="dropdown dropdown-end">
+        <label tabindex="0" class="btn btn-ghost btn-circle avatar">
+          <div class="w-10 rounded-full bg-primary text-primary-content flex items-center justify-center font-bold text-xl">
+            A
+          </div>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="container mx-auto px-4 py-8 max-w-7xl">
+    
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+      <div>
+        <h2 class="text-3xl font-bold">Resumen Global</h2>
+        <p class="text-base-content/70 mt-1">Sincronización de FIELs (Eqidis) y Empresas (Odoo)</p>
+      </div>
+      <div>
+        <a href="{% url 'fiscal:master_panel_descargas' %}" class="btn btn-outline btn-primary">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-1">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+          </svg>
+          Portal Global de Descargas
+        </a>
+      </div>
+    </div>
+
+    <!-- Configuracion Global de Sincronizacion -->
+    <div class="collapse collapse-arrow bg-base-100 shadow mb-8">
+      <input type="checkbox" />
+      <div class="collapse-title font-medium flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        Configuración de Sincronización Global
+        <span class="badge badge-info badge-sm">Aplica a todas</span>
+      </div>
+      <div class="collapse-content">
+        <div id="global-sync-result"></div>
+        <form
+            hx-post="{% url 'fiscal:master_panel_global_sync' %}"
+            hx-target="#global-sync-result"
+            hx-swap="innerHTML"
+            class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-2"
+        >
+            {% csrf_token %}
+            <!-- Dia de Ejecucion -->
+            <div class="form-control">
+                <label class="label py-1"><span class="label-text text-xs">Día de ejecución</span></label>
+                <select name="weekly_sync_day" class="select select-bordered select-sm">
+                    <option value="0" {% if global_sync_day == 0 %}selected{% endif %}>Lunes</option>
+                    <option value="1" {% if global_sync_day == 1 %}selected{% endif %}>Martes</option>
+                    <option value="2" {% if global_sync_day == 2 %}selected{% endif %}>Miércoles</option>
+                    <option value="3" {% if global_sync_day == 3 %}selected{% endif %}>Jueves</option>
+                    <option value="4" {% if global_sync_day == 4 %}selected{% endif %}>Viernes</option>
+                    <option value="5" {% if global_sync_day == 5 %}selected{% endif %}>Sábado</option>
+                    <option value="6" {% if global_sync_day == 6 %}selected{% endif %}>Domingo</option>
+                </select>
+            </div>
+            <!-- Hora -->
+            <div class="form-control">
+                <label class="label py-1"><span class="label-text text-xs">Hora</span></label>
+                <select name="weekly_sync_hour" class="select select-bordered select-sm">
+                    {% for opt in hour_options %}
+                    <option value="{{ opt.value }}" {% if global_sync_hour == opt.value %}selected{% endif %}>{{ opt.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- Minuto -->
+            <div class="form-control">
+                <label class="label py-1"><span class="label-text text-xs">Minuto</span></label>
+                <select name="weekly_sync_minute" class="select select-bordered select-sm">
+                    {% for min in minute_options %}
+                    <option value="{{ min.value }}" {% if global_sync_minute == min.value %}selected{% endif %}>{{ min.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- Rango de dias -->
+            <div class="form-control">
+                <label class="label py-1"><span class="label-text text-xs">Rango a descargar</span></label>
+                <select name="weekly_sync_days_range" class="select select-bordered select-sm">
+                    {% for opt in days_range_options %}
+                    <option value="{{ opt.value }}" {% if global_sync_range == opt.value %}selected{% endif %}>{{ opt.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- Estado y Botón -->
+            <div class="form-control col-span-1 md:col-span-4 mt-2 flex flex-col md:flex-row justify-end gap-3">
+                <button 
+                  type="button" 
+                  class="btn btn-outline btn-secondary w-full md:w-auto"
+                  hx-post="{% url 'fiscal:master_panel_sync_now' %}"
+                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                  hx-target="#global-sync-result"
+                  hx-swap="innerHTML"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Sincronizar Seleccionadas Ahora
+                </button>
+                <button type="submit" class="btn btn-primary w-full md:w-auto">
+                    Aplicar a todas las configuradas
+                </button>
+            </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div class="stat bg-base-100 shadow rounded-box border-l-4 border-info">
+        <div class="stat-title">Empresas en Odoo</div>
+        <div class="stat-value text-info">{{ total_odoo }}</div>
+        <div class="stat-desc">Todas las empresas en el maestro UDU</div>
+      </div>
+      
+      <div class="stat bg-base-100 shadow rounded-box border-l-4 border-secondary">
+        <div class="stat-title">FIELs en DynamoDB</div>
+        <div class="stat-value text-secondary">{{ total_fiels }}</div>
+        <div class="stat-desc">Usuarios con e.firma registrada (Kidi SAT)</div>
+      </div>
+      
+      <div class="stat bg-base-100 shadow rounded-box border-l-4 border-success">
+        <div class="stat-title">Listas para Sincronizar</div>
+        <div class="stat-value text-success">{{ total_ready }}</div>
+        <div class="stat-desc">Empresas en Odoo con FIEL disponible</div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body p-0 overflow-x-auto">
+        <table class="table table-zebra w-full text-base">
+          <!-- head -->
+          <thead class="bg-base-200 text-base-content text-sm">
+            <tr>
+              <th>ID Odoo</th>
+              <th>Empresa</th>
+              <th>RFC</th>
+              <th>Disponibilidad FIEL</th>
+              <th>Habilitar Descarga Masiva</th>
+              <th>Estatus Local</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for company in merged_companies %}
+            <tr class="hover">
+              <td class="font-mono text-sm text-base-content/70">{{ company.odoo_id }}</td>
+              <td class="font-semibold">{{ company.name }}</td>
+              <td class="font-mono">{{ company.rfc }}</td>
+              <td>
+                {% if company.has_fiel %}
+                  <div class="badge badge-success gap-1 whitespace-nowrap">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-4 h-4 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    FIEL Descifrada
+                  </div>
+                {% else %}
+                  <div class="badge badge-ghost gap-1 whitespace-nowrap">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-4 h-4 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    Sin FIEL
+                  </div>
+                {% endif %}
+              </td>
+              <td>
+                {% if company.is_local_tenant %}
+                  <div class="badge badge-primary gap-1 whitespace-nowrap">Activa en Aspeia</div>
+                {% else %}
+                  <div class="badge badge-outline gap-1 whitespace-nowrap">No Vinculada</div>
+                {% endif %}
+              </td>
+              <td>
+                {% if company.is_local_tenant %}
+                  <div class="form-control w-fit">
+                    <label class="cursor-pointer label p-0 gap-2">
+                      <input 
+                        type="checkbox" 
+                        class="toggle toggle-sm {% if company.is_sync_enabled %}toggle-primary{% endif %}" 
+                        name="is_enabled"
+                        {% if company.is_sync_enabled %}checked{% endif %}
+                        hx-post="{% url 'fiscal:master_panel_toggle_sync' %}"
+                        hx-vals='{"local_tenant_id": "{{ company.local_tenant_id }}"}'
+                        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                        hx-trigger="change"
+                        hx-swap="none"
+                        title="Habilitar/deshabilitar la descarga automática"
+                      />
+                    </label>
+                  </div>
+                {% else %}
+                  <span class="text-xs text-base-content/50">Requiere configuración</span>
+                {% endif %}
+              </td>
+              <td>
+                <div class="flex gap-2">
+                  <button 
+                    class="btn btn-sm btn-outline btn-info" 
+                    {% if not company.has_fiel %}disabled{% endif %} 
+                    title="Configurar y Sincronizar Tenant"
+                    hx-post="{% url 'fiscal:master_panel_sync' %}"
+                    hx-vals='{"odoo_id": "{{ company.odoo_id }}"}'
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-swap="outerHTML"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="6" class="text-center py-8 text-base-content/60">
+                No se encontraron empresas en UDU (Odoo).
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

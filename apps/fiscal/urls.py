@@ -1,10 +1,22 @@
 from django.urls import path
 from . import views
+from . import views_master
 
 app_name = 'fiscal'
 
 urlpatterns = [
     path('dashboard/', views.FiscalDashboardView.as_view(), name='dashboard'),
+    
+    # Master Panel
+    path('master-panel/', views_master.MasterPanelView.as_view(), name='master_panel'),
+    path('master-panel/sync/', views_master.MasterPanelSyncView.as_view(), name='master_panel_sync'),
+    path('master-panel/global-sync/', views_master.MasterPanelGlobalSyncConfigView.as_view(), name='master_panel_global_sync'),
+    path('master-panel/toggle-sync/', views_master.MasterPanelToggleSyncView.as_view(), name='master_panel_toggle_sync'),
+    path('master-panel/sync-now/', views_master.MasterPanelSyncNowView.as_view(), name='master_panel_sync_now'),
+    path('master-panel/descargas/', views_master.MasterPanelDescargasView.as_view(), name='master_panel_descargas'),
+    path('master-panel/descargas/eliminar/', views_master.MasterPanelDescargasEliminarView.as_view(), name='master_panel_descargas_eliminar'),
+    path('master-panel/descargas/<int:pk>/', views_master.MasterPanelDescargaCfdisView.as_view(), name='master_panel_descargas_cfdis'),
+
     # Endpoints HTMX para carga de certificados
     path('upload-csd/', views.UploadCSDView.as_view(), name='upload_csd'),
     path('upload-fiel/', views.UploadFIELView.as_view(), name='upload_fiel'),

@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-7xl">
+    
+    <!-- Header with Back Button -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+      <div>
+        <div class="flex items-center gap-3 mb-2">
+            <a href="{% url 'fiscal:master_panel_descargas' %}" class="btn btn-sm btn-ghost px-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                </svg>
+                Volver
+            </a>
+            <h2 class="text-3xl font-bold">Detalle de Sincronización</h2>
+        </div>
+        <p class="text-base-content/70 flex items-center gap-2">
+            Mostrando resultados para: <span class="badge badge-neutral uppercase">{{ solicitud.tipo }}</span>
+        </p>
+      </div>
+      
+      <!-- Stats -->
+      <div class="flex gap-4">
+        <div class="stat bg-base-100 shadow rounded-box py-2 px-6">
+          <div class="stat-title text-sm">Empresa</div>
+          <div class="stat-value text-lg">{{ solicitud.company.nombre }}</div>
+          <div class="stat-desc font-mono">{{ solicitud.company.rfc }}</div>
+        </div>
+        <div class="stat bg-base-100 shadow rounded-box py-2 px-6">
+          <div class="stat-title text-sm">Periodo</div>
+          <div class="stat-value text-lg">{{ solicitud.fecha_inicio|date:"d M" }} - {{ solicitud.fecha_fin|date:"d M, Y" }}</div>
+        </div>
+        <div class="stat bg-base-100 shadow rounded-box py-2 px-6">
+          <div class="stat-title text-sm">Facturas Descargadas</div>
+          <div class="stat-value text-2xl text-primary">{{ total_cfdis }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table Section -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body p-0">
+            <div class="overflow-x-auto w-full">
+                <table class="table table-sm md:table-md w-full">
+                    <thead class="bg-base-200">
+                        <tr>
+                            <th>Folio/Serie</th>
+                            <th>Emisor / Receptor</th>
+                            <th>UUID</th>
+                            <th>Total</th>
+                            <th>Estado SAT</th>
+                            <th>Tipo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cfdi in cfdis %}
+                        <tr class="hover">
+                            <td>
+                                <div class="font-bold">{{ cfdi.serie|default:"" }} {{ cfdi.folio|default:"" }}</div>
+                                <div class="text-xs opacity-70">{{ cfdi.fecha_emision|date:"d/m/Y H:i" }}</div>
+                            </td>
+                            <td>
+                                {% if solicitud.tipo == 'recibidos' %}
+                                    <div class="font-bold">{{ cfdi.nombre_emisor|truncatechars:40|default:"N/A" }}</div>
+                                    <div class="text-xs font-mono">{{ cfdi.rfc_emisor|default:"N/A" }}</div>
+                                {% else %}
+                                    <div class="font-bold">{{ cfdi.nombre_receptor|truncatechars:40|default:"N/A" }}</div>
+                                    <div class="text-xs font-mono">{{ cfdi.rfc_receptor|default:"N/A" }}</div>
+                                {% endif %}
+                            </td>
+                            <td class="font-mono text-xs">
+                                {{ cfdi.uuid }}
+                            </td>
+                            <td>
+                                <div class="font-bold">${{ cfdi.total|floatformat:2|intcomma }} {{ cfdi.moneda }}</div>
+                                {% if cfdi.metodo_pago %}
+                                <div class="text-xs opacity-70">{{ cfdi.metodo_pago }}</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if cfdi.estado_sat == 'Vigente' %}
+                                    <span class="badge badge-success badge-sm">Vigente</span>
+                                {% elif cfdi.estado_sat == 'Cancelado' %}
+                                    <span class="badge badge-error badge-sm">Cancelado</span>
+                                {% else %}
+                                    <span class="badge badge-warning badge-sm">{{ cfdi.estado_sat|default:"Desconocido" }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if cfdi.tipo_cfdi == 'I' %}
+                                    <span class="badge badge-info badge-sm">Ingreso</span>
+                                {% elif cfdi.tipo_cfdi == 'E' %}
+                                    <span class="badge badge-error badge-sm">Egreso</span>
+                                {% elif cfdi.tipo_cfdi == 'P' %}
+                                    <span class="badge badge-warning badge-sm">Pago</span>
+                                {% elif cfdi.tipo_cfdi == 'T' %}
+                                    <span class="badge badge-neutral badge-sm">Traslado</span>
+                                {% else %}
+                                    <span class="badge badge-ghost badge-sm">{{ cfdi.tipo_cfdi }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center py-8 text-base-content/50">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12 mx-auto mb-2 opacity-50">
+                                  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                </svg>
+                                No se encontraron facturas vinculadas a esta descarga.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

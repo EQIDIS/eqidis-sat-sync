@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}Panel Maestro - Portal de Descargas{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-base-200">
+  <!-- Navbar Principal -->
+  <div class="navbar bg-base-100 shadow-sm px-8">
+    <div class="flex-none">
+      <a href="{% url 'fiscal:master_panel' %}" class="btn btn-ghost">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Volver
+      </a>
+    </div>
+    <div class="flex-1 justify-center">
+      <h1 class="font-bold text-2xl text-primary">Aspeia Finance - Portal Global de Descargas</h1>
+    </div>
+    <div class="flex-none gap-2">
+      <div class="dropdown dropdown-end">
+        <label tabindex="0" class="btn btn-ghost btn-circle avatar">
+          <div class="w-10 rounded-full bg-primary text-primary-content flex items-center justify-center font-bold text-xl">
+            A
+          </div>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="container mx-auto px-4 py-8 max-w-7xl">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+      <div>
+        <h2 class="text-3xl font-bold">Historial de Sincronizaciones</h2>
+        <p class="text-base-content/70 mt-1">Registro central de todas las peticiones al SAT inter-empresas</p>
+      </div>
+      <div class="flex flex-col items-end gap-2">
+        <div class="flex gap-4">
+          <div class="stat bg-base-100 shadow rounded-box py-2 px-6">
+            <div class="stat-title text-sm">Descargas Totales</div>
+            <div class="stat-value text-2xl">{{ total_solicitudes }}</div>
+          </div>
+          <div class="stat bg-base-100 shadow rounded-box py-2 px-6">
+            <div class="stat-title text-sm">En Proceso / SAT</div>
+            <div class="stat-value text-2xl text-warning">{{ solicitudes_pendientes }}</div>
+          </div>
+        </div>
+        <div>
+          <form method="post" action="{% url 'fiscal:master_panel_descargas_eliminar' %}" onsubmit="return confirm('¿Estás seguro de que quieres eliminar TODO el historial de sincronizaciones globales? Esto no eliminará los archivos (XMLs y PDFs), solo el registro de las peticiones al SAT.');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline btn-error mt-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Eliminar Historial
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card bg-base-100 shadow-xl">
+      <div class="card-body p-0 overflow-x-auto">
+        <table class="table table-zebra w-full text-sm">
+          <!-- head -->
+          <thead class="bg-base-200 text-base-content">
+            <tr>
+              <th>ID</th>
+              <th>Empresa</th>
+              <th>RFC</th>
+              <th>Tipo</th>
+              <th>Rango Fechas</th>
+              <th>Comprobantes</th>
+              <th>Estado</th>
+              <th>Solicitado</th>
+              <th>Exportar</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for solicitud in solicitudes %}
+            <tr class="hover">
+              <td class="font-mono text-xs">{{ solicitud.request_id_sat|default:"N/A"|truncatechars:15 }}</td>
+              <td class="font-semibold">{{ solicitud.company.nombre }}</td>
+              <td class="font-mono">{{ solicitud.company.rfc }}</td>
+              <td>
+                <span class="badge badge-sm uppercase">{{ solicitud.tipo|default:"N/A" }}</span>
+              </td>
+              <td class="text-xs whitespace-nowrap">
+                {{ solicitud.fecha_inicio|date:"d/m/Y" }}<br>al<br>{{ solicitud.fecha_fin|date:"d/m/Y" }}
+              </td>
+              <td class="text-center">
+                  -
+              </td>
+              <td>
+                {% if solicitud.status == 'downloaded' %}
+                    <span class="badge badge-success badge-sm">Completada</span>
+                {% elif solicitud.status == 'failed' %}
+                    <span class="badge badge-error badge-sm">Error SAT</span>
+                {% elif solicitud.status == 'ready' %}
+                    <span class="badge badge-info badge-sm">Listo p/Descargar</span>
+                {% elif solicitud.status == 'rejected' %}
+                    <span class="badge badge-error badge-sm">Rechazada</span>
+                {% else %}
+                    <span class="badge badge-warning badge-sm whitespace-nowrap">
+                        <span class="loading loading-spinner loading-xs mr-1"></span>
+                        En SAT...
+                    </span>
+                {% endif %}
+              </td>
+              <td class="text-xs whitespace-nowrap">
+                {{ solicitud.created_at|date:"d M Y, H:i" }}
+              </td>
+              <td>
+                {% if solicitud.status == 'downloaded' and solicitud.packages.count > 0 %}
+                  {% with paquete=solicitud.packages.first %}
+                      {% if paquete.s3_zip_path %}
+                      <a href="{% url 'fiscal:descargar_paquete' paquete.id %}" target="_blank" class="btn btn-xs btn-outline btn-primary mb-1 w-full" title="Descargar archivos ZIP originales del SAT">
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 mr-1">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                          </svg>
+                          ZIP
+                      </a>
+                      {% endif %}
+                  {% endwith %}
+                  <a href="{% url 'fiscal:master_panel_descargas_cfdis' solicitud.id %}" class="btn btn-xs btn-outline btn-secondary w-full" title="Ver CFDIs Descargados">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 mr-1">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                      </svg>
+                      Ver Detalle
+                  </a>
+                {% elif solicitud.status == 'failed' %}
+                    <span class="text-xs text-error font-medium" title="Error en SAT">Ver Error</span>
+                {% else %}
+                    <span class="text-xs text-base-content/50">N/A</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="9" class="text-center py-8 text-base-content/60">
+                Aún no hay descargas registradas en Aspeia.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

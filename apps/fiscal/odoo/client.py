@@ -60,7 +60,7 @@ class OdooClient:
         partners = client.search_read('res.partner', [['is_company', '=', True]])
     """
 
-    def __init__(self, url: str, db: str, username: str, password: str):
+    def __init__(self, url: str, db: str, username: str, password: str, allowed_company_id: int = None):
         """
         Inicializa el cliente Odoo.
 
@@ -69,11 +69,13 @@ class OdooClient:
             db: Nombre de la base de datos
             username: Usuario de Odoo
             password: Contraseña de Odoo
+            allowed_company_id: ID de empresa para contexto multiempresa
         """
         self.url = url.rstrip('/')
         self.db = db
         self.username = username
         self.password = password
+        self.allowed_company_id = allowed_company_id
         self.uid: Optional[int] = None
         self._common: Optional[xmlrpc.client.ServerProxy] = None
         self._models: Optional[xmlrpc.client.ServerProxy] = None
@@ -143,6 +145,14 @@ class OdooClient:
         """
         self._ensure_authenticated()
         kwargs = kwargs or {}
+        
+        # Inject standard multi-company context for Odoo 15+
+        if self.allowed_company_id:
+            context = kwargs.get('context', {})
+            if 'allowed_company_ids' not in context:
+                context['allowed_company_ids'] = [self.allowed_company_id]
+                kwargs['context'] = context
+
         try:
             return self.models.execute_kw(
                 self.db, self.uid, self.password,
@@ -446,12 +456,18 @@ class OdooClient:
 
 
 def create_client_from_connection(connection) -> OdooClient:
-    """Crea un OdooClient desde un modelo OdooConnection."""
+    """Crea un OdooClient desde un modelo OdooConnection prioritizando variables globales."""
+    import os
+    url = os.environ.get('ODOO_URL', '').strip() or connection.odoo_url
+    db = os.environ.get('ODOO_DB', '').strip() or connection.odoo_db
+    username = os.environ.get('ODOO_USERNAME', '').strip() or connection.odoo_username
+    
     client = OdooClient(
-        url=connection.odoo_url,
-        db=connection.odoo_db,
-        username=connection.odoo_username,
-        password=connection.password
+        url=url,
+        db=db,
+        username=username,
+        password=connection.password, # Este ya prioriza .env internamente
+        allowed_company_id=connection.odoo_company_id
     )
     client.authenticate()
     return client

@@ -91,7 +91,11 @@ class OdooConnection(models.Model):
     
     @property
     def password(self):
-        """Desencripta y retorna la contraseña."""
+        """Desencripta y retorna la contraseña priorizando variables globales."""
+        import os
+        env_pw = os.environ.get('ODOO_PASSWORD', '').strip()
+        if env_pw:
+            return env_pw
         return ModelEncryption.decrypt(self.encrypted_password)
 
 

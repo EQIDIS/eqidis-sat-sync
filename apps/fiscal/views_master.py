@@ -498,15 +498,42 @@ class MasterPanelDescargasView(TemplateView):
     template_name = 'fiscal/master_panel_descargas.html'
     
     def get_context_data(self, **kwargs):
+        from apps.companies.models import Empresa
         from .models import CfdiDownloadRequest
+        from django.db.models import Count, Max
         context = super().get_context_data(**kwargs)
         
-        # Filtramos descargas y las ordenamos por más recientes
-        solicitudes = CfdiDownloadRequest.objects.all().select_related('company').prefetch_related('packages').order_by('-created_at')
+        # Filtramos empresas que tienen descargas
+        empresas = Empresa.objects.annotate(
+            total_requests=Count('cfdi_download_requests'),
+            ultima_solicitud=Max('cfdi_download_requests__created_at')
+        ).filter(total_requests__gt=0).order_by('-ultima_solicitud')
         
-        context['solicitudes'] = solicitudes
-        context['total_solicitudes'] = solicitudes.count()
-        context['solicitudes_pendientes'] = solicitudes.filter(status__in=['requested', 'ready']).count()
+        # Extraer información en vivo por empresa
+        empresas_data = []
+        for empresa in empresas:
+            requests = empresa.cfdi_download_requests.all()
+            
+            # Estado general
+            pendientes = requests.filter(status__in=['requested', 'ready']).count()
+            
+            # Comprobantes totales
+            total_cfdis = requests.aggregate(
+                cfdis=Count('packages__cfdis')
+            )['cfdis'] or 0
+            
+            empresas_data.append({
+                'empresa': empresa,
+                'total_requests': empresa.total_requests,
+                'ultima_solicitud': empresa.ultima_solicitud,
+                'pendientes': pendientes,
+                'total_cfdis': total_cfdis,
+                'estado': 'En Proceso' if pendientes > 0 else 'Completado'
+            })
+            
+        context['empresas_data'] = empresas_data
+        context['total_solicitudes'] = CfdiDownloadRequest.objects.count()
+        context['solicitudes_pendientes'] = CfdiDownloadRequest.objects.filter(status__in=['requested', 'ready']).count()
         
         return context
 
@@ -514,25 +541,39 @@ class MasterPanelDescargasView(TemplateView):
 class MasterPanelDescargasEliminarView(View):
     """
     ELIMINACIÓN TOTAL (Super Purge).
-    Borra TODO el historial de solicitudes, paquetes, verificaciones de estado, 
-    documentos CFDI de la base de datos y FÍSICAMENTE los archivos XML y ZIP 
-    del bucket de S3 para todas las empresas que tengan descargas.
+    Borra el historial y archivos físicos. 
+    Acepta 'company_id' en POST para restringir la purga a una sola empresa.
     """
     def post(self, request, *args, **kwargs):
         from .models import CfdiDownloadRequest, CfdiDocument, CfdiStateCheck, SatDownloadPackage
         from django.db import transaction
         import boto3
         
+        company_id = request.POST.get('company_id')
+        
         try:
             # 1. Preparar lista de archivos de S3 a borrar
             s3_keys_to_delete = []
             
+            # Model Queries base
+            cfdis_qs = CfdiDocument.objects.all()
+            packages_qs = SatDownloadPackage.objects.all()
+            requests_qs = CfdiDownloadRequest.objects.all()
+            state_checks_qs = CfdiStateCheck.objects.all()
+            
+            # Filtro por empresa si existe
+            if company_id:
+                cfdis_qs = cfdis_qs.filter(company_id=company_id)
+                packages_qs = packages_qs.filter(request__company_id=company_id)
+                requests_qs = requests_qs.filter(company_id=company_id)
+                state_checks_qs = state_checks_qs.filter(document__company_id=company_id)
+            
             # Recopilar paths de XMLs
-            xml_paths = CfdiDocument.objects.exclude(s3_xml_path__isnull=True).exclude(s3_xml_path='').values_list('s3_xml_path', flat=True)
+            xml_paths = cfdis_qs.exclude(s3_xml_path__isnull=True).exclude(s3_xml_path='').values_list('s3_xml_path', flat=True)
             s3_keys_to_delete.extend(list(xml_paths))
             
             # Recopilar paths de ZIPs
-            zip_paths = SatDownloadPackage.objects.exclude(s3_zip_path__isnull=True).exclude(s3_zip_path='').values_list('s3_zip_path', flat=True)
+            zip_paths = packages_qs.exclude(s3_zip_path__isnull=True).exclude(s3_zip_path='').values_list('s3_zip_path', flat=True)
             s3_keys_to_delete.extend(list(zip_paths))
             
             # 2. Borrar físicamente de S3 en lotes de 1000
@@ -545,7 +586,6 @@ class MasterPanelDescargasEliminarView(View):
                 )
                 bucket_name = os.environ.get('AWS_STORAGE_BUCKET_NAME')
                 
-                # DeleteObjects bucket API acepta max 1000 keys por request
                 chunk_size = 1000
                 for i in range(0, len(s3_keys_to_delete), chunk_size):
                     chunk = s3_keys_to_delete[i:i + chunk_size]
@@ -557,16 +597,17 @@ class MasterPanelDescargasEliminarView(View):
             
             # 3. Borrado en Cascada de la Base de Datos
             with transaction.atomic():
-                # Borrar verificaciones de estado (es FK de document)
-                CfdiStateCheck.objects.all().delete()
+                # Borrar verificaciones de estado
+                state_checks_qs.delete()
                 
                 # Borrar documentos CFDI
-                cfdis_count, _ = CfdiDocument.objects.all().delete()
+                cfdis_count, _ = cfdis_qs.delete()
                 
                 # Al borrar solicitudes, los paquetes se borran por cascade
-                reqs_count, _ = CfdiDownloadRequest.objects.all().delete()
+                reqs_count, _ = requests_qs.delete()
             
-            messages.success(request, f"Purga Global Exitosa: Se eliminaron {reqs_count} historiales SAT, {cfdis_count} XMLs y todos los archivos físicos de Amazon S3.")
+            target = f"la Empresa ID {company_id}" if company_id else "TODAS las empresas"
+            messages.success(request, f"Purga de {target} Exitosa: Se eliminaron {reqs_count} historiales SAT, {cfdis_count} XMLs y todos sus archivos de Amazon S3.")
             
         except Exception as e:
             logger.error(f"Error crítico en Super Purge del Panel Maestro: {e}")
@@ -577,25 +618,48 @@ class MasterPanelDescargasEliminarView(View):
 @method_decorator(user_passes_test(is_admin), name='dispatch')
 class MasterPanelDescargaCfdisView(TemplateView):
     """
-    Muestra la tabla de CFDIs obtenidos en una Solicitud de Descarga específica,
+    Muestra la tabla de TODOS los CFDIs obtenidos para una Empresa específica,
     reutilizando el diseño visual de fiscal/cfdis.
     """
     template_name = 'fiscal/master_panel_descargas_cfdis.html'
     
     def get_context_data(self, **kwargs):
-        from .models import CfdiDownloadRequest, CfdiDocument
+        from apps.companies.models import Empresa
+        from .models import CfdiDocument
+        from django.shortcuts import get_object_or_404
         context = super().get_context_data(**kwargs)
         
-        request_id = self.kwargs.get('pk')
-        solicitud = get_object_or_404(CfdiDownloadRequest, id=request_id)
+        company_id = self.kwargs.get('company_id')
+        empresa = get_object_or_404(Empresa, id=company_id)
         
-        # Filtramos todos los CFDIs que pertenezcan a algún paquete de esta solicitud
+        # Filtramos todos los CFDIs que pertenezcan a esta empresa
         cfdis = CfdiDocument.objects.filter(
-            download_package__request=solicitud
+            company=empresa
         ).select_related('company', 'current_state_check').order_by('-fecha_emision')
         
-        context['solicitud'] = solicitud
+        context['empresa'] = empresa
+        context['solicitud'] = None # Removing old dependency in template
         context['cfdis'] = cfdis
         context['total_cfdis'] = cfdis.count()
         return context
+
+@method_decorator(user_passes_test(is_admin), name='dispatch')
+class MasterPanelOdooSyncAllView(View):
+    """
+    Exporta en segundo plano todos los CFDIs disponibles de todas las empresas
+    locales que tengan una conexión activa a Odoo.
+    """
+    def post(self, request, *args, **kwargs):
+        from apps.integrations.odoo.models import OdooConnection
+        from apps.fiscal.odoo.tasks import sync_new_cfdis_to_odoo
+        
+        # Encolamos la tarea de sync hacia Odoo para cada empresa con conexión activa
+        active_connections = OdooConnection.objects.filter(status='active')
+        count = 0
+        for conn in active_connections:
+            sync_new_cfdis_to_odoo.delay(conn.empresa_id)
+            count += 1
+            
+        messages.success(request, f"¡Sincronización a Odoo Iniciada! Se procesarán las facturas de {count} empresas en segundo plano.")
+        return redirect('fiscal:master_panel_descargas')
 

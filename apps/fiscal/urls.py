@@ -15,7 +15,8 @@ urlpatterns = [
     path('master-panel/sync-now/', views_master.MasterPanelSyncNowView.as_view(), name='master_panel_sync_now'),
     path('master-panel/descargas/', views_master.MasterPanelDescargasView.as_view(), name='master_panel_descargas'),
     path('master-panel/descargas/eliminar/', views_master.MasterPanelDescargasEliminarView.as_view(), name='master_panel_descargas_eliminar'),
-    path('master-panel/descargas/<int:pk>/', views_master.MasterPanelDescargaCfdisView.as_view(), name='master_panel_descargas_cfdis'),
+    path('master-panel/descargas/empresa/<int:company_id>/', views_master.MasterPanelDescargaCfdisView.as_view(), name='master_panel_descargas_cfdis'),
+    path('master-panel/descargas/odoo-sync-all/', views_master.MasterPanelOdooSyncAllView.as_view(), name='master_panel_odoo_sync_all'),
 
     # Endpoints HTMX para carga de certificados
     path('upload-csd/', views.UploadCSDView.as_view(), name='upload_csd'),

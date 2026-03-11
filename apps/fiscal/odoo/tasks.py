@@ -95,12 +95,13 @@ def verify_odoo_connection_task(connection_id: int):
 
 
 @shared_task
-def sync_new_cfdis_to_odoo(empresa_id: int, request_id: int = None):
+def sync_new_cfdis_to_odoo(empresa_id: int, request_id: int = None, exclude_uuids: list = None):
     """Sincroniza CFDIs nuevos de una descarga SAT hacia Odoo."""
     from apps.fiscal.models import CfdiDocument
     from .sync_service import OdooInvoiceSyncService
 
     logger.info(f"Sincronizando CFDIs nuevos a Odoo para empresa {empresa_id}")
+    exclude_uuids = exclude_uuids or []
 
     connection = OdooConnection.objects.filter(
         empresa_id=empresa_id,
@@ -111,20 +112,27 @@ def sync_new_cfdis_to_odoo(empresa_id: int, request_id: int = None):
     if not connection:
         logger.info(f"No hay conexión Odoo activa para empresa {empresa_id}")
         return {'status': 'skipped', 'reason': 'No hay conexión Odoo activa'}
+        
+    if not connection.password:
+        logger.error(f"Falla de Desencriptación: La contraseña de Odoo para la empresa {empresa_id} no pudo ser leída (posible cambio en SECRET_KEY). Abortando.")
+        return {'status': 'error', 'reason': 'Error de contraseña (InvalidToken)'}
 
     synced_uuids = OdooSyncLog.objects.filter(
         connection=connection,
         status='success'
     ).values_list('cfdi_uuid', flat=True)
 
-    cfdis_qs = CfdiDocument.objects.filter(company_id=empresa_id).exclude(uuid__in=synced_uuids)
+    cfdis_qs = CfdiDocument.objects.filter(company_id=empresa_id)\
+        .exclude(uuid__in=synced_uuids)\
+        .exclude(uuid__in=exclude_uuids)
 
     if request_id:
         cfdis_qs = cfdis_qs.filter(download_package__request_id=request_id)
 
-    cfdis = cfdis_qs[:50]
+    # Convertir a lista para no perder referencia tras las iteraciones
+    cfdis = list(cfdis_qs[:50])
 
-    logger.info(f"Encontrados {cfdis.count()} CFDIs para sincronizar")
+    logger.info(f"Encontrados {len(cfdis)} CFDIs para sincronizar en este lote.")
 
     synced = 0
     exists = 0
@@ -133,6 +141,7 @@ def sync_new_cfdis_to_odoo(empresa_id: int, request_id: int = None):
     service = OdooInvoiceSyncService(connection)
 
     for cfdi in cfdis:
+        exclude_uuids.append(str(cfdi.uuid))
         try:
             xml_content = None
             if cfdi.s3_xml_path:
@@ -165,12 +174,25 @@ def sync_new_cfdis_to_odoo(empresa_id: int, request_id: int = None):
 
     logger.info(f"Sincronización completada: {synced} creados, {exists} existían, {errors} errores")
 
+    # Volver a calcular si quedan más CFDIs pendientes (excluyendo lo procesado)
+    restantes_qs = CfdiDocument.objects.filter(company_id=empresa_id)\
+        .exclude(uuid__in=OdooSyncLog.objects.filter(connection=connection, status='success').values('cfdi_uuid'))\
+        .exclude(uuid__in=exclude_uuids)
+
+    if request_id:
+        restantes_qs = restantes_qs.filter(download_package__request_id=request_id)
+
+    total_restantes = restantes_qs.count()
+    if total_restantes > 0 and len(cfdis) == 50:
+        logger.info(f"Quedan {total_restantes} CFDIs pendientes en cola. Encolando el siguiente lote...")
+        sync_new_cfdis_to_odoo.delay(empresa_id, request_id, exclude_uuids)
+
     return {
         'status': 'completed',
         'synced': synced,
         'exists': exists,
         'errors': errors,
-        'total': cfdis.count()
+        'total': len(cfdis)
     }
 
 

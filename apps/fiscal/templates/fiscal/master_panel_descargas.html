@@ -38,21 +38,30 @@
         <div class="flex gap-4">
           <div class="stat bg-base-100 shadow rounded-box py-2 px-6">
             <div class="stat-title text-sm">Descargas Totales</div>
-            <div class="stat-value text-2xl">{{ total_solicitudes }}</div>
+            <div class="stat-value text-2xl" style="color: white !important">{{ total_solicitudes }}</div>
           </div>
           <div class="stat bg-base-100 shadow rounded-box py-2 px-6">
             <div class="stat-title text-sm">En Proceso / SAT</div>
             <div class="stat-value text-2xl text-warning">{{ solicitudes_pendientes }}</div>
           </div>
         </div>
-        <div>
-          <form method="post" action="{% url 'fiscal:master_panel_descargas_eliminar' %}" onsubmit="return confirm('¿Estás seguro de que quieres eliminar TODO el historial de sincronizaciones globales? Esto no eliminará los archivos (XMLs y PDFs), solo el registro de las peticiones al SAT.');">
+        <div class="flex gap-2 mt-2 w-full justify-end">
+          <!-- Botón Global (Abre Modal Global) -->
+          <button onclick="document.getElementById('modal_eliminar_global').showModal()" class="btn btn-sm btn-outline btn-error w-full max-w-[200px]">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Eliminar Todas
+          </button>
+          
+          <!-- Botón Sync Odoo Global -->
+          <form method="post" action="{% url 'fiscal:master_panel_odoo_sync_all' %}" class="w-full max-w-[200px]">
             {% csrf_token %}
-            <button type="submit" class="btn btn-sm btn-outline btn-error mt-2">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            <button type="submit" class="btn btn-sm btn-primary w-full">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 mr-1">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
               </svg>
-              Eliminar Historial
+              Exportar a Odoo 
             </button>
           </form>
         </div>
@@ -66,79 +75,103 @@
           <!-- head -->
           <thead class="bg-base-200 text-base-content">
             <tr>
-              <th>ID</th>
               <th>Empresa</th>
               <th>RFC</th>
-              <th>Tipo</th>
-              <th>Rango Fechas</th>
-              <th>Comprobantes</th>
-              <th>Estado</th>
-              <th>Solicitado</th>
-              <th>Exportar</th>
+              <th class="text-center">Total Peticiones</th>
+              <th class="text-center">Comprobantes (CFDIs)</th>
+              <th class="text-center">Estado General</th>
+              <th class="text-center">Última Solicitud</th>
+              <th class="text-right">Exportar / Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {% for solicitud in solicitudes %}
+            {% for item in empresas_data %}
             <tr class="hover">
-              <td class="font-mono text-xs">{{ solicitud.request_id_sat|default:"N/A"|truncatechars:15 }}</td>
-              <td class="font-semibold">{{ solicitud.company.nombre }}</td>
-              <td class="font-mono">{{ solicitud.company.rfc }}</td>
-              <td>
-                <span class="badge badge-sm uppercase">{{ solicitud.tipo|default:"N/A" }}</span>
-              </td>
-              <td class="text-xs whitespace-nowrap">
-                {{ solicitud.fecha_inicio|date:"d/m/Y" }}<br>al<br>{{ solicitud.fecha_fin|date:"d/m/Y" }}
-              </td>
+              <td class="font-semibold">{{ item.empresa.nombre }}</td>
+              <td class="font-mono">{{ item.empresa.rfc }}</td>
+              <td class="text-center font-bold">{{ item.total_requests }}</td>
+              <td class="text-center font-bold">{{ item.total_cfdis }}</td>
               <td class="text-center">
-                  -
-              </td>
-              <td>
-                {% if solicitud.status == 'downloaded' %}
-                    <span class="badge badge-success badge-sm">Completada</span>
-                {% elif solicitud.status == 'failed' %}
-                    <span class="badge badge-error badge-sm">Error SAT</span>
-                {% elif solicitud.status == 'ready' %}
-                    <span class="badge badge-info badge-sm">Listo p/Descargar</span>
-                {% elif solicitud.status == 'rejected' %}
-                    <span class="badge badge-error badge-sm">Rechazada</span>
-                {% else %}
+                {% if item.pendientes > 0 %}
                     <span class="badge badge-warning badge-sm whitespace-nowrap">
                         <span class="loading loading-spinner loading-xs mr-1"></span>
                         En SAT...
                     </span>
+                {% else %}
+                    <span class="badge badge-success badge-sm">Completado</span>
                 {% endif %}
               </td>
-              <td class="text-xs whitespace-nowrap">
-                {{ solicitud.created_at|date:"d M Y, H:i" }}
+              <td class="text-xs whitespace-nowrap text-center">
+                {{ item.ultima_solicitud|date:"d M Y, H:i" }}
               </td>
-              <td>
-                {% if solicitud.status == 'downloaded' and solicitud.packages.count > 0 %}
-                  {% with paquete=solicitud.packages.first %}
-                      {% if paquete.s3_zip_path %}
-                      <a href="{% url 'fiscal:descargar_paquete' paquete.id %}" target="_blank" class="btn btn-xs btn-outline btn-primary mb-1 w-full" title="Descargar archivos ZIP originales del SAT">
-                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 mr-1">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                          </svg>
-                          ZIP
-                      </a>
-                      {% endif %}
-                  {% endwith %}
-                  <a href="{% url 'fiscal:master_panel_descargas_cfdis' solicitud.id %}" class="btn btn-xs btn-outline btn-secondary w-full" title="Ver CFDIs Descargados">
+              <td class="text-right">
+                <div class="flex justify-end gap-2">
+                  <a href="{% url 'fiscal:master_panel_descargas_cfdis' item.empresa.id %}" class="btn btn-xs btn-outline btn-secondary" title="Ver CFDIs Descargados de esta Empresa">
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 mr-1">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                       </svg>
-                      Ver Detalle
+                      Ver CFDIs
                   </a>
-                {% elif solicitud.status == 'failed' %}
-                    <span class="text-xs text-error font-medium" title="Error en SAT">Ver Error</span>
-                {% else %}
-                    <span class="text-xs text-base-content/50">N/A</span>
-                {% endif %}
+                  <!-- Botón Individual (Abre Modal Individual) -->
+                  <button onclick="document.getElementById('modal_eliminar_{{ item.empresa.id }}').showModal()" class="btn btn-xs btn-outline btn-error" title="Eliminar CFDIs de esta Empresa">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                    </svg>
+                  </button>
+                </div>
+
+                <!-- Modal Individual -->
+                <dialog id="modal_eliminar_{{ item.empresa.id }}" class="modal">
+                  <div class="modal-box bg-base-300">
+                    <form method="dialog">
+                      <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+                    </form>
+                    <h3 class="font-bold text-lg text-error mb-4">Eliminar Todos los Datos ({{ item.empresa.nombre }})</h3>
+                    
+                    <div class="alert bg-error text-error-content shadow-lg flex-col items-start gap-4 p-6 rounded-xl">
+                      <div class="flex items-start gap-3 w-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        <div class="flex flex-col gap-2">
+                            <h4 class="font-bold text-lg">Esta accion no se puede deshacer</h4>
+                            <p class="font-medium">Se eliminaran:</p>
+                            <ul class="list-disc list-inside space-y-1 ml-1 text-sm">
+                              <li>Todos los CFDIs descagados ({{ item.total_cfdis }})</li>
+                              <li>Documentos ZIP y XML originales alojados en Amazon S3</li>
+                              <li>Historial de descargas SAT</li>
+                              <li>Verificaciones de estado</li>
+                            </ul>
+                            <p class="font-medium mt-2 text-sm">La configuracion de sincronizacion se mantendra.</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <form method="post" action="{% url 'fiscal:master_panel_descargas_eliminar' %}" class="mt-6">
+                      {% csrf_token %}
+                      <input type="hidden" name="company_id" value="{{ item.empresa.id }}">
+                      <label class="label cursor-pointer justify-start gap-3">
+                        <input type="checkbox" class="checkbox checkbox-error" onchange="document.getElementById('btn_delete_{{ item.empresa.id }}').disabled = !this.checked;" />
+                        <span class="label-text font-semibold">Confirmo que deseo eliminar todos los datos de esta empresa</span>
+                      </label>
+                      <div class="modal-action">
+                        <button type="button" class="btn btn-ghost" onclick="document.getElementById('modal_eliminar_{{ item.empresa.id }}').close()">Cancelar</button>
+                        <button type="submit" id="btn_delete_{{ item.empresa.id }}" class="btn btn-error" disabled>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 mr-1">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                            </svg>
+                            Eliminar Todo
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                  <form method="dialog" class="modal-backdrop">
+                    <button>close</button>
+                  </form>
+                </dialog>
               </td>
             </tr>
             {% empty %}
             <tr>
-              <td colspan="9" class="text-center py-8 text-base-content/60">
+              <td colspan="7" class="text-center py-8 text-base-content/60">
                 Aún no hay descargas registradas en Aspeia.
               </td>
             </tr>
@@ -149,4 +182,52 @@
     </div>
   </div>
 </div>
+
+<!-- Modal Global -->
+<dialog id="modal_eliminar_global" class="modal">
+  <div class="modal-box bg-base-300">
+    <form method="dialog">
+      <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+    </form>
+    <h3 class="font-bold text-lg text-error mb-4">Eliminar Todos los Datos (Global)</h3>
+    
+    <div class="alert bg-error text-error-content shadow-lg flex-col items-start gap-4 p-6 rounded-xl">
+      <div class="flex items-start gap-3 w-full">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+        <div class="flex flex-col gap-2">
+            <h4 class="font-bold text-lg">Esta accion no se puede deshacer</h4>
+            <p class="font-medium">Se eliminaran para TODAS las empresas locales:</p>
+            <ul class="list-disc list-inside space-y-1 ml-1 text-sm">
+              <li>Todos los CFDIs descagados globalmente</li>
+              <li>Documentos ZIP y XML originales alojados en Amazon S3</li>
+              <li>Historiales de descargas SAT</li>
+              <li>Verificaciones de estado</li>
+            </ul>
+            <p class="font-medium mt-2 text-sm">La configuracion de sincronizacion se mantendra.</p>
+        </div>
+      </div>
+    </div>
+
+    <form method="post" action="{% url 'fiscal:master_panel_descargas_eliminar' %}" class="mt-6">
+      {% csrf_token %}
+      <!-- No company_id = purge everything -->
+      <label class="label cursor-pointer justify-start gap-3">
+        <input type="checkbox" class="checkbox checkbox-error" onchange="document.getElementById('btn_delete_global').disabled = !this.checked;" />
+        <span class="label-text font-semibold">Confirmo que deseo eliminar todos los datos globales</span>
+      </label>
+      <div class="modal-action">
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('modal_eliminar_global').close()">Cancelar</button>
+        <button type="submit" id="btn_delete_global" class="btn btn-error" disabled>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 mr-1">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+            </svg>
+            Eliminar Todo
+        </button>
+      </div>
+    </form>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
 {% endblock %}

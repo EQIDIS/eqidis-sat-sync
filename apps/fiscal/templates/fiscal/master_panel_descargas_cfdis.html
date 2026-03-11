@@ -16,8 +16,9 @@
             </a>
             <h2 class="text-3xl font-bold">Detalle de Sincronización</h2>
         </div>
+        </div>
         <p class="text-base-content/70 flex items-center gap-2">
-            Mostrando resultados para: <span class="badge badge-neutral uppercase">{{ solicitud.tipo }}</span>
+            Mostrando resultados del almacén completo de CFDIs
         </p>
       </div>
       
@@ -25,12 +26,8 @@
       <div class="flex gap-4">
         <div class="stat bg-base-100 shadow rounded-box py-2 px-6">
           <div class="stat-title text-sm">Empresa</div>
-          <div class="stat-value text-lg">{{ solicitud.company.nombre }}</div>
-          <div class="stat-desc font-mono">{{ solicitud.company.rfc }}</div>
-        </div>
-        <div class="stat bg-base-100 shadow rounded-box py-2 px-6">
-          <div class="stat-title text-sm">Periodo</div>
-          <div class="stat-value text-lg">{{ solicitud.fecha_inicio|date:"d M" }} - {{ solicitud.fecha_fin|date:"d M, Y" }}</div>
+          <div class="stat-value text-lg">{{ empresa.nombre }}</div>
+          <div class="stat-desc font-mono">{{ empresa.rfc }}</div>
         </div>
         <div class="stat bg-base-100 shadow rounded-box py-2 px-6">
           <div class="stat-title text-sm">Facturas Descargadas</div>
@@ -62,13 +59,15 @@
                                 <div class="text-xs opacity-70">{{ cfdi.fecha_emision|date:"d/m/Y H:i" }}</div>
                             </td>
                             <td>
-                                {% if solicitud.tipo == 'recibidos' %}
-                                    <div class="font-bold">{{ cfdi.nombre_emisor|truncatechars:40|default:"N/A" }}</div>
-                                    <div class="text-xs font-mono">{{ cfdi.rfc_emisor|default:"N/A" }}</div>
-                                {% else %}
-                                    <div class="font-bold">{{ cfdi.nombre_receptor|truncatechars:40|default:"N/A" }}</div>
-                                    <div class="text-xs font-mono">{{ cfdi.rfc_receptor|default:"N/A" }}</div>
-                                {% endif %}
+                                <!-- Generic Emisor/Receptor label since types can be mixed -->
+                                <div class="font-bold">
+                                    <span class="text-xs text-base-content/50 uppercase">Emisor:</span> 
+                                    {{ cfdi.nombre_emisor|truncatechars:30|default:"N/A" }}
+                                </div>
+                                <div class="font-bold mt-1">
+                                    <span class="text-xs text-base-content/50 uppercase">Receptor:</span>
+                                    {{ cfdi.nombre_receptor|truncatechars:30|default:"N/A" }}
+                                </div>
                             </td>
                             <td class="font-mono text-xs">
                                 {{ cfdi.uuid }}

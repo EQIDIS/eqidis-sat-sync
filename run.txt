@@ -1,5 +1,14 @@
-cd aspeia_accounting && .venv/bin/python manage.py runserver
+cd eqidis-sat-sync && .venv/bin/python manage.py runserver
 
-cd aspeia_accounting && .venv/bin/celery -A config worker -l info
+cd eqidis-sat-sync && .venv/bin/celery -A config worker -l info
 
-cd aspeia_accounting && .venv/bin/celery -A config beat -l info
+cd eqidis-sat-sync && .venv/bin/celery -A config beat -l info
+
+.venv/bin/python manage.py createsuperuser
+
+.venv/bin/python manage.py migrate
+
+Acceso:
+Email: admin@eqidis.com
+Username: admin
+Password: Eq1dis2026@

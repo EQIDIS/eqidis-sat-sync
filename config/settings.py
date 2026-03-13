@@ -151,9 +151,9 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('POSTGRES_DB', 'aspeia_finance'),
-        'USER': os.environ.get('POSTGRES_USER', 'aspeia'),
-        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'aspeia_dev_2026'),
+        'NAME': os.environ.get('POSTGRES_DB', 'eqidis_finance'),
+        'USER': os.environ.get('POSTGRES_USER', 'eqidis'),
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'eqidis_dev_2026'),
         'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
         'PORT': os.environ.get('POSTGRES_PORT', '5432'),
     }
@@ -255,7 +255,7 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'localhost')
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 1025))
 EMAIL_USE_TLS = False
-DEFAULT_FROM_EMAIL = 'noreply@aspeia.local'
+DEFAULT_FROM_EMAIL = 'noreply@eqidis.local'
 
 # =============================================================================
 # Multi-tenant Configuration

@@ -10,8 +10,8 @@ networks:
 services:
   web:
     build: .
-    image: aspeia-accounting:latest
-    container_name: aspeia_web
+    image: eqidis-accounting:latest
+    container_name: eqidis_web
     restart: unless-stopped
     env_file: .env
     environment:
@@ -30,8 +30,8 @@ services:
     command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --threads 2 --timeout 120
 
   celery-worker:
-    image: aspeia-accounting:latest
-    container_name: aspeia_celery_worker
+    image: eqidis-accounting:latest
+    container_name: eqidis_celery_worker
     restart: unless-stopped
     env_file: .env
     environment:
@@ -47,8 +47,8 @@ services:
     command: celery -A config worker -l info
 
   celery-beat:
-    image: aspeia-accounting:latest
-    container_name: aspeia_celery_beat
+    image: eqidis-accounting:latest
+    container_name: eqidis_celery_beat
     restart: unless-stopped
     env_file: .env
     environment:
@@ -65,11 +65,11 @@ services:
 
   db:
     image: postgres:16-alpine
-    container_name: aspeia_postgres
+    container_name: eqidis_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-aspeia_finance}
-      POSTGRES_USER: ${POSTGRES_USER:-aspeia}
+      POSTGRES_DB: ${POSTGRES_DB:-eqidis_finance}
+      POSTGRES_USER: ${POSTGRES_USER:-eqidis}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -79,7 +79,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-aspeia} -d ${POSTGRES_DB:-aspeia_finance}",
+          "pg_isready -U ${POSTGRES_USER:-eqidis} -d ${POSTGRES_DB:-eqidis_finance}",
         ]
       interval: 10s
       timeout: 5s
@@ -87,7 +87,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: aspeia_redis
+    container_name: eqidis_redis
     restart: unless-stopped
     volumes:
       - redis_data:/data

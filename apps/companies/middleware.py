@@ -33,7 +33,7 @@ class TenantMiddleware:
         if request.user.is_authenticated:
             session_key = getattr(settings, 'TENANT_SESSION_KEY', 'active_empresa_id')
             empresa_id = request.session.get(session_key)
-            
+
             if empresa_id:
                 # Verify user has access to this company
                 from apps.companies.models import Membresia
@@ -41,7 +41,7 @@ class TenantMiddleware:
                     empresa_id=empresa_id,
                     is_active=True
                 ).select_related('empresa').first()
-                
+
                 if membresia:
                     # Set tenant context for all queries
                     set_current_tenant(membresia.empresa)
@@ -51,11 +51,9 @@ class TenantMiddleware:
                     request.membresia = membresia
                 else:
                     # User doesn't have access to this company anymore
-                    del request.session[session_key]
-                    return redirect('companies:seleccionar_empresa')
-            else:
-                # No company selected, redirect to selector
-                return redirect('companies:seleccionar_empresa')
+                    if session_key in request.session:
+                        del request.session[session_key]
+                    # Do not force redirect; continue without tenant
         
         return self.get_response(request)
     

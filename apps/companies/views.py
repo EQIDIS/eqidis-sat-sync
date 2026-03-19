@@ -28,12 +28,7 @@ def seleccionar_empresa(request):
         messages.success(request, f'Bienvenido a {membresia.empresa.nombre}')
         return redirect('/')
     
-    # If user has no companies, show message
-    if not membresias.exists():
-        messages.warning(
-            request, 
-            'No tienes acceso a ninguna empresa. Contacta al administrador.'
-        )
+    # If user has no companies, no warning is needed – user can continue without tenant
     
     context = {
         'membresias': membresias,

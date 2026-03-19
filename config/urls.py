@@ -9,17 +9,24 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.views.generic import TemplateView
+from apps.core.views import HomeView, favicon_view
 
 
 urlpatterns = [
+    # Favicon
+    path("favicon.ico", favicon_view, name="favicon"),
+
     # Admin
     path('admin/', admin.site.urls),
     
     # Allauth authentication
     path('accounts/', include('allauth.urls')),
     
-    # Company management (tenant switching)
-    path('', include('apps.companies.urls')),
+    # Home dashboard (no tenant required)
+    path('', HomeView.as_view(), name='home'),
+    
+    # Company management (tenant switching) under /empresas
+    path('empresas/', include('apps.companies.urls')),
     
     # Fiscal module (incl. CFDIs y integración Odoo)
     path('fiscal/', include('apps.fiscal.urls')),

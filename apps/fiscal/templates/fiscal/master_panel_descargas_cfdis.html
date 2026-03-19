@@ -8,7 +8,11 @@
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
       <div>
         <div class="flex items-center gap-3 mb-2">
-            <a href="{% url 'fiscal:master_panel_descargas' %}" class="btn btn-sm btn-ghost px-2">
+            <a
+              href="{% url 'fiscal:master_panel_descargas' %}"
+              hx-boost="false"
+              class="inline-flex items-center gap-2 rounded-xl px-3 h-10 font-semibold border border-base-300 bg-base-100 hover:bg-base-200 transition-colors"
+            >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
                 </svg>
@@ -23,25 +27,25 @@
       </div>
       
       <!-- Stats -->
-      <div class="flex gap-4">
-        <div class="stat bg-base-100 shadow rounded-box py-2 px-6">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="stat bg-base-100 shadow-sm rounded-2xl border border-base-300 py-3 px-6">
           <div class="stat-title text-sm">Empresa</div>
           <div class="stat-value text-lg">{{ empresa.nombre }}</div>
           <div class="stat-desc font-mono">{{ empresa.rfc }}</div>
         </div>
-        <div class="stat bg-base-100 shadow rounded-box py-2 px-6">
+        <div class="stat bg-base-100 shadow-sm rounded-2xl border border-base-300 py-3 px-6">
           <div class="stat-title text-sm">Facturas Descargadas</div>
-          <div class="stat-value text-2xl text-primary">{{ total_cfdis }}</div>
+          <div class="stat-value text-2xl font-bold text-[color:var(--eq-primary)]">{{ total_cfdis }}</div>
         </div>
       </div>
     </div>
 
     <!-- Table Section -->
-    <div class="card bg-base-100 shadow-xl">
+    <div class="card bg-base-100 border border-base-300 shadow-xl rounded-2xl">
         <div class="card-body p-0">
             <div class="overflow-x-auto w-full">
                 <table class="table table-sm md:table-md w-full">
-                    <thead class="bg-base-200">
+                    <thead class="bg-base-200/70 text-base-content">
                         <tr>
                             <th>Folio/Serie</th>
                             <th>Emisor / Receptor</th>
@@ -80,24 +84,40 @@
                             </td>
                             <td>
                                 {% if cfdi.estado_sat == 'Vigente' %}
-                                    <span class="badge badge-success badge-sm">Vigente</span>
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full border border-[color:var(--eq-primary)]/30 bg-[color:var(--eq-primary)]/10 text-[color:var(--eq-primary)] text-xs font-semibold">
+                                      Vigente
+                                    </span>
                                 {% elif cfdi.estado_sat == 'Cancelado' %}
-                                    <span class="badge badge-error badge-sm">Cancelado</span>
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full border border-[color:var(--eq-secondary)]/30 bg-[color:var(--eq-secondary)]/10 text-[color:var(--eq-secondary)] text-xs font-semibold">
+                                      Cancelado
+                                    </span>
                                 {% else %}
-                                    <span class="badge badge-warning badge-sm">{{ cfdi.estado_sat|default:"Desconocido" }}</span>
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full border border-[color:var(--eq-secondary)]/30 bg-[color:var(--eq-secondary)]/10 text-[color:var(--eq-secondary)] text-xs font-semibold">
+                                      {{ cfdi.estado_sat|default:"Desconocido" }}
+                                    </span>
                                 {% endif %}
                             </td>
                             <td>
                                 {% if cfdi.tipo_cfdi == 'I' %}
-                                    <span class="badge badge-info badge-sm">Ingreso</span>
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full border border-[color:var(--eq-primary)]/30 bg-[color:var(--eq-primary)]/10 text-[color:var(--eq-primary)] text-xs font-semibold">
+                                      Ingreso
+                                    </span>
                                 {% elif cfdi.tipo_cfdi == 'E' %}
-                                    <span class="badge badge-error badge-sm">Egreso</span>
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full border border-[color:var(--eq-secondary)]/30 bg-[color:var(--eq-secondary)]/10 text-[color:var(--eq-secondary)] text-xs font-semibold">
+                                      Egreso
+                                    </span>
                                 {% elif cfdi.tipo_cfdi == 'P' %}
-                                    <span class="badge badge-warning badge-sm">Pago</span>
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full border border-[color:var(--eq-secondary)]/30 bg-[color:var(--eq-secondary)]/10 text-[color:var(--eq-secondary)] text-xs font-semibold">
+                                      Pago
+                                    </span>
                                 {% elif cfdi.tipo_cfdi == 'T' %}
-                                    <span class="badge badge-neutral badge-sm">Traslado</span>
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full border border-base-300 bg-base-200 text-base-content/70 text-xs font-semibold">
+                                      Traslado
+                                    </span>
                                 {% else %}
-                                    <span class="badge badge-ghost badge-sm">{{ cfdi.tipo_cfdi }}</span>
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full border border-base-300 bg-base-200 text-base-content/70 text-xs font-semibold">
+                                      {{ cfdi.tipo_cfdi }}
+                                    </span>
                                 {% endif %}
                             </td>
                         </tr>

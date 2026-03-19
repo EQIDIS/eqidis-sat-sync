@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Panel principal - Eqidis{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-base-100">
+  <div class="hero min-h-[72vh]">
+    <div class="hero-content flex-col lg:flex-row gap-10">
+      <!-- Left -->
+      <div class="w-full lg:w-1/2">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-base-200 border border-base-300">
+          <span class="text-lg font-bold text-[color:var(--eq-primary)]">Eqidis</span>
+          <span class="text-sm text-base-content/70">Sync Panel · Odoo · SAT</span>
+        </div>
+
+        <h1 class="mt-5 text-4xl md:text-5xl font-extrabold leading-tight">
+          Panel principal de sincronización
+          <span class="block mt-3 text-lg font-semibold text-base-content/70">
+            Configura la integración global y activa empresa solo cuando necesites operación por tenant.
+          </span>
+        </h1>
+
+        <div class="mt-7 flex flex-col sm:flex-row gap-3">
+          <a
+            href="{% url 'fiscal:master_panel' %}"
+            hx-boost="false"
+            class="inline-flex items-center justify-center rounded-2xl h-16 px-8 text-base font-semibold bg-[color:var(--eq-primary)] text-[color:var(--eq-primary-content)] hover:opacity-90 transition-opacity border border-[color:var(--eq-primary)]"
+          >
+            Panel Maestro de Odoo Sync
+          </a>
+          <a
+            href="{% url 'companies:seleccionar_empresa' %}"
+            hx-boost="false"
+            class="inline-flex items-center justify-center rounded-2xl h-16 px-8 text-base font-semibold bg-base-100 hover:bg-base-200 transition-colors border border-[color:var(--eq-border)]"
+          >
+            Gestionar empresas
+          </a>
+        </div>
+
+        <div class="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="rounded-2xl bg-base-100 border border-base-300 shadow-sm p-4 flex items-start gap-3">
+            <div class="w-10 h-10 rounded-xl bg-[color:var(--eq-primary)]/10 border border-[color:var(--eq-primary)]/30 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[color:var(--eq-primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 12h18M3 6h18M3 18h18" />
+              </svg>
+            </div>
+            <div>
+              <div class="font-semibold">Integración Odoo</div>
+              <div class="text-sm text-base-content/70">Config global + sincronización masiva.</div>
+            </div>
+          </div>
+
+          <div class="rounded-2xl bg-base-100 border border-base-300 shadow-sm p-4 flex items-start gap-3">
+            <div class="w-10 h-10 rounded-xl bg-[color:var(--eq-secondary)]/10 border border-[color:var(--eq-secondary)]/30 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[color:var(--eq-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 2v20m10-10H2" />
+              </svg>
+            </div>
+            <div>
+              <div class="font-semibold">SAT · CFDIs</div>
+              <div class="text-sm text-base-content/70">Certificados, descargas y estados por empresa.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right -->
+      <div class="w-full lg:w-1/2">
+        <div class="card bg-base-100 border border-base-300 shadow-xl">
+          <div class="card-body">
+            <h2 class="card-title text-2xl font-bold">Acceso rápido</h2>
+            <p class="text-base-content/70">
+              Si entras sin empresa, el panel maestro funciona, pero las vistas por tenant exigirán empresa activa.
+            </p>
+
+            <div class="mt-6 grid grid-cols-1 gap-4">
+              <a
+                href="/fiscal/master-panel/"
+                  hx-boost="false"
+                class="group rounded-2xl border border-base-300 bg-base-100 p-4 hover:shadow-md transition-shadow flex items-center justify-between"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-11 h-11 rounded-xl bg-[color:var(--eq-primary)]/10 border border-[color:var(--eq-primary)]/30 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[color:var(--eq-primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 20V10m0 0l-6 6m6-6l6 6" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div class="font-semibold group-hover:text-[color:var(--eq-primary)] transition-colors">Odoo Sync · Master</div>
+                    <div class="text-sm text-base-content/70">Global + ejecución.</div>
+                  </div>
+                </div>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full border border-[color:var(--eq-primary)]/30 bg-[color:var(--eq-primary)]/10 text-[color:var(--eq-primary)] text-xs font-semibold">
+                  Master
+                </span>
+              </a>
+
+              <a
+                href="/empresas/seleccionar-empresa/"
+                  hx-boost="false"
+                class="group rounded-2xl border border-base-300 bg-base-100 p-4 hover:shadow-md transition-shadow flex items-center justify-between"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-11 h-11 rounded-xl bg-[color:var(--eq-secondary)]/10 border border-[color:var(--eq-secondary)]/30 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[color:var(--eq-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 11l9-8 9 8v10a1 1 0 01-1 1H4a1 1 0 01-1-1V11z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 22V12h6v10" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div class="font-semibold group-hover:text-[color:var(--eq-secondary)] transition-colors">Empresas · Tenant</div>
+                    <div class="text-sm text-base-content/70">Crear y seleccionar empresa.</div>
+                  </div>
+                </div>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full border border-[color:var(--eq-secondary)]/30 bg-[color:var(--eq-secondary)]/10 text-[color:var(--eq-secondary)] text-xs font-semibold">
+                  Tenant
+                </span>
+              </a>
+
+              <div class="rounded-2xl border border-base-300 bg-base-200/40 p-4">
+                <div class="font-semibold">Tip</div>
+                <div class="text-sm text-base-content/70 mt-1">
+                  Usa el Panel Maestro para sincronizar integraciones globales. Para SAT/CFDIs por RFC, activa un tenant.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

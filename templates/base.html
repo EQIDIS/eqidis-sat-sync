@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="es" data-theme="dark">
+<html lang="es" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Aspeia Finance{% endblock %}</title>
+    <title>{% block title %}Eqidis{% endblock %}</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon" />
     
     <!-- TailwindCSS + DaisyUI via CDN -->
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
@@ -15,14 +16,65 @@
     <!-- Alpine.js -->
     <script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>
     
+    <!-- Custom app palette (explicit colors for our components) -->
+    <style>
+      :root {
+        --eq-primary: oklch(0.4732 0.1282 298.476);
+        --eq-primary-content: oklch(1 0 0);
+        --eq-secondary: oklch(0.6747 0.1568 20.3063);
+        --eq-secondary-content: oklch(1 0 0);
+        --eq-accent: oklch(0.97 0 0);
+        --eq-base-100: oklch(1 0 0);
+        --eq-base-200: oklch(0.97 0 0);
+        --eq-base-300: oklch(0.922 0 0);
+        --eq-text: oklch(0.145 0 0);
+        --eq-border: oklch(0.922 0 0);
+        --eq-radius: 0.625rem;
+      }
+
+      /* Minimal overrides to keep DaisyUI components consistent with our palette */
+      .toggle-primary {
+        background-color: var(--eq-primary) !important;
+        border-color: var(--eq-primary) !important;
+      }
+      .toggle-primary:checked {
+        background-color: var(--eq-primary) !important;
+        border-color: var(--eq-primary) !important;
+      }
+      .badge-primary {
+        background-color: color-mix(in oklch, var(--eq-primary) 10%, transparent) !important;
+        border-color: var(--eq-primary) !important;
+        color: var(--eq-primary) !important;
+      }
+      .btn-primary {
+        background-color: var(--eq-primary) !important;
+        border-color: var(--eq-primary) !important;
+        color: var(--eq-primary-content) !important;
+      }
+    </style>
+
     <!-- HTMX CSRF Token Configuration -->
     <meta name="csrf-token" content="{{ csrf_token }}">
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Global loading overlay for HTMX requests (better perceived performance)
+            const overlay = document.getElementById('global-loading');
+            const showOverlay = () => {
+                if (!overlay) return;
+                overlay.classList.remove('hidden');
+            };
+            const hideOverlay = () => {
+                if (!overlay) return;
+                overlay.classList.add('hidden');
+            };
+
             // CSRF Token Setup
             document.body.addEventListener('htmx:configRequest', function(event) {
                 event.detail.headers['X-CSRFToken'] = document.querySelector('meta[name="csrf-token"]').content;
             });
+            document.body.addEventListener('htmx:beforeRequest', showOverlay);
+            document.body.addEventListener('htmx:afterRequest', hideOverlay);
+            document.body.addEventListener('htmx:responseError', hideOverlay);
             
             // Tras guardar empresa Odoo, recargar para habilitar el toggle "Sincronizar a Odoo"
             document.body.addEventListener('odooCompanyUpdated', function() {
@@ -82,7 +134,16 @@
     
     {% block extra_head %}{% endblock %}
 </head>
-<body class="min-h-screen bg-base-200" hx-boost="true">
+<body class="min-h-screen bg-base-100" hx-boost="true">
+    <div
+      id="global-loading"
+      class="hidden fixed inset-0 z-[9999] bg-base-100/60 backdrop-blur flex items-center justify-center"
+    >
+      <div class="flex flex-col items-center gap-3">
+        <span class="loading loading-spinner loading-lg"></span>
+        <span class="text-sm text-base-content/70">Cargando…</span>
+      </div>
+    </div>
     <!-- Toast messages with auto-dismiss -->
     {% if messages %}
     <div class="toast toast-end z-50">
@@ -105,7 +166,12 @@
     {% if current_empresa %}
     <div class="navbar bg-base-100 shadow-lg sticky top-0 z-40">
         <div class="flex-1">
-            <a href="/" class="btn btn-ghost text-xl bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Aspeia Finance</a>
+            <a
+              href="/"
+              class="btn btn-ghost text-xl bg-gradient-to-r from-[color:var(--eq-primary)] to-[color:var(--eq-secondary)] bg-clip-text text-transparent"
+            >
+              Eqidis
+            </a>
         </div>
         
         <!-- Company Switcher -->
@@ -113,7 +179,9 @@
             <div x-data="{ open: false }" class="dropdown dropdown-end" @click.away="open = false">
                 <button @click="open = !open" tabindex="0" class="btn btn-ghost gap-2">
                     <span>{{ current_empresa.nombre }}</span>
-                    <div class="badge badge-primary">{{ current_rol }}</div>
+                    <div class="inline-flex items-center px-2 py-0.5 rounded-full border border-[color:var(--eq-primary)]/30 bg-[color:var(--eq-primary)]/10 text-[color:var(--eq-primary)] text-xs font-semibold">
+                      {{ current_rol }}
+                    </div>
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                 </button>
                 <ul x-show="open" x-transition tabindex="0" class="dropdown-content menu bg-base-200 rounded-box z-[1] w-72 p-2 shadow-lg" style="display: none;">
@@ -129,7 +197,7 @@
                     </li>
                     {% endfor %}
                     <li class="mt-2 border-t border-base-300"></li>
-                    <li><a href="{% url 'companies:seleccionar_empresa' %}" class="text-primary">Gestionar Empresas</a></li>
+                    <li><a href="{% url 'companies:seleccionar_empresa' %}" class="text-[color:var(--eq-primary)] font-semibold">Gestionar Empresas</a></li>
                 </ul>
             </div>
         </div>
@@ -139,13 +207,13 @@
         <div class="flex-none gap-2">
             <div x-data="{ open: false }" class="dropdown dropdown-end" @click.away="open = false">
                 <button @click="open = !open" tabindex="0" class="btn btn-ghost btn-circle avatar placeholder">
-                    <div class="bg-primary text-primary-content w-10 rounded-full"><span>{{ user.email|slice:":1"|upper }}</span></div>
+                    <div class="bg-[color:var(--eq-primary)] text-[color:var(--eq-primary-content)] w-10 rounded-full flex items-center justify-center"><span>{{ user.email|slice:":1"|upper }}</span></div>
                 </button>
                 <ul x-show="open" x-transition tabindex="0" class="dropdown-content menu bg-base-200 rounded-box z-[1] w-52 p-2 shadow-lg" style="display: none;">
                     <li class="menu-title"><span>{{ user.email }}</span></li>
                     
-                    <!-- NEW: Shortcut to Fiscal Config -->
-                    <li><a href="{% url 'fiscal:dashboard' %}">
+                    <!-- Shortcut: Master panel (superuser) or company dashboard -->
+                    <li><a href="{% if user.is_superuser %}{% url 'fiscal:master_panel' %}{% else %}{% url 'fiscal:dashboard' %}{% endif %}">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                         Certificados y Fiscal
                     </a></li>

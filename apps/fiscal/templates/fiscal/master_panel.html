@@ -1,22 +1,33 @@
 {% extends "base.html" %}
 
-{% block title %}Panel Maestro | Aspeya Finance{% endblock %}
+{% block title %}Panel Maestro | Eqidis Sync{% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-base-200">
+<div class="min-h-screen bg-base-100 relative overflow-hidden">
+  <div class="pointer-events-none absolute -top-40 -left-40 h-96 w-96 rounded-full bg-[color:var(--eq-primary)]/10 blur-3xl"></div>
+  <div class="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-[color:var(--eq-secondary)]/10 blur-3xl"></div>
+
   <!-- Navbar Principal -->
-  <div class="navbar bg-base-100 shadow-sm px-8">
+  <div class="navbar bg-base-100/90 backdrop-blur border-b border-base-300 px-6 sticky top-0 z-30">
     <div class="flex-1">
-      <h1 class="font-bold text-2xl text-primary">Aspeia Finance - Panel Maestro</h1>
-    </div>
-    <div class="flex-none gap-2">
-      <div class="dropdown dropdown-end">
-        <label tabindex="0" class="btn btn-ghost btn-circle avatar">
-          <div class="w-10 rounded-full bg-primary text-primary-content flex items-center justify-center font-bold text-xl">
-            A
-          </div>
-        </label>
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-[color:var(--eq-primary)]/10 border border-[color:var(--eq-primary)]/20 flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[color:var(--eq-primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 20V10" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18 20V4" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 20V16" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="font-bold text-2xl text-base-content">Panel Maestro de Sincronización</h1>
+          <p class="text-sm text-base-content/60 -mt-0.5">Odoo · FIEL · Empresas locales</p>
+        </div>
       </div>
+    </div>
+    <div class="flex-none">
+      <a href="{% url 'fiscal:master_panel_descargas' %}" hx-boost="false" class="inline-flex items-center justify-center rounded-xl border border-base-300 bg-base-100 hover:bg-base-200 px-4 h-10 font-semibold">
+        Portal Global de Descargas
+      </a>
     </div>
   </div>
 
@@ -24,29 +35,23 @@
     
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
       <div>
-        <h2 class="text-3xl font-bold">Resumen Global</h2>
-        <p class="text-base-content/70 mt-1">Sincronización de FIELs (Eqidis) y Empresas (Odoo)</p>
-      </div>
-      <div>
-        <a href="{% url 'fiscal:master_panel_descargas' %}" class="btn btn-outline btn-primary">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-1">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-          </svg>
-          Portal Global de Descargas
-        </a>
+        <h2 class="text-3xl font-bold">Resumen global</h2>
+        <p class="text-base-content/70 mt-1">Sincronización de FIELs (Eqidis) y empresas (Odoo)</p>
       </div>
     </div>
 
     <!-- Configuracion Global de Sincronizacion -->
-    <div class="collapse collapse-arrow bg-base-100 shadow mb-8">
+    <div class="collapse collapse-arrow rounded-2xl border border-base-300 bg-base-100 shadow-sm mb-8">
       <input type="checkbox" />
-      <div class="collapse-title font-medium flex items-center gap-2">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div class="collapse-title font-semibold flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[color:var(--eq-primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
         Configuración de Sincronización Global
-        <span class="badge badge-info badge-sm">Aplica a todas</span>
+        <span class="inline-flex items-center px-2 py-0.5 rounded-full border border-[color:var(--eq-primary)]/30 bg-[color:var(--eq-primary)]/10 text-[color:var(--eq-primary)] text-xs font-semibold">
+          Aplica a todas
+        </span>
       </div>
       <div class="collapse-content">
         <div id="global-sync-result"></div>
@@ -99,9 +104,9 @@
             </div>
             <!-- Estado y Botón -->
             <div class="form-control col-span-1 md:col-span-4 mt-2 flex flex-col md:flex-row justify-end gap-3">
-                <button 
-                  type="button" 
-                  class="btn btn-outline btn-secondary w-full md:w-auto"
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center rounded-xl px-4 h-10 w-full md:w-auto font-semibold bg-base-100 hover:bg-base-200 transition-colors border border-base-300 text-[color:var(--eq-primary)]"
                   hx-post="{% url 'fiscal:master_panel_sync_now' %}"
                   hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
                   hx-target="#global-sync-result"
@@ -112,7 +117,10 @@
                   </svg>
                   Sincronizar Seleccionadas Ahora
                 </button>
-                <button type="submit" class="btn btn-primary w-full md:w-auto">
+                <button
+                  type="submit"
+                  class="inline-flex items-center justify-center rounded-xl px-4 h-10 w-full md:w-auto font-semibold bg-[color:var(--eq-primary)] text-[color:var(--eq-primary-content)] hover:opacity-90 transition-opacity border border-[color:var(--eq-primary)]"
+                >
                     Aplicar a todas las configuradas
                 </button>
             </div>
@@ -122,31 +130,31 @@
 
     <!-- Stats -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-      <div class="stat bg-base-100 shadow rounded-box border-l-4 border-info">
+      <div class="stat bg-base-100 shadow-sm rounded-2xl border border-base-300">
         <div class="stat-title">Empresas en Odoo</div>
-        <div class="stat-value text-info">{{ total_odoo }}</div>
-        <div class="stat-desc">Todas las empresas en el maestro UDU</div>
+        <div class="stat-value text-[color:var(--eq-primary)]">{{ total_odoo }}</div>
+        <div class="stat-desc">Todas las empresas en el maestro Odoo</div>
       </div>
       
-      <div class="stat bg-base-100 shadow rounded-box border-l-4 border-secondary">
-        <div class="stat-title">FIELs en DynamoDB</div>
-        <div class="stat-value text-secondary">{{ total_fiels }}</div>
-        <div class="stat-desc">Usuarios con e.firma registrada (Kidi SAT)</div>
+      <div class="stat bg-base-100 shadow-sm rounded-2xl border border-base-300">
+        <div class="stat-title">Fieles en DynamoDB</div>
+        <div class="stat-value text-[color:var(--eq-primary)]">{{ total_fiels }}</div>
+        <div class="stat-desc">Usuarios con e.firma registrada (Eqidis Front)</div>
       </div>
       
-      <div class="stat bg-base-100 shadow rounded-box border-l-4 border-success">
+      <div class="stat bg-base-100 shadow-sm rounded-2xl border border-base-300">
         <div class="stat-title">Listas para Sincronizar</div>
-        <div class="stat-value text-success">{{ total_ready }}</div>
+        <div class="stat-value text-[color:var(--eq-primary)]">{{ total_ready }}</div>
         <div class="stat-desc">Empresas en Odoo con FIEL disponible</div>
       </div>
     </div>
 
     <!-- Table -->
-    <div class="card bg-base-100 shadow-xl">
+    <div class="card bg-base-100 border border-base-300 shadow-xl rounded-2xl">
       <div class="card-body p-0 overflow-x-auto">
         <table class="table table-zebra w-full text-base">
           <!-- head -->
-          <thead class="bg-base-200 text-base-content text-sm">
+          <thead class="bg-base-200/70 text-base-content text-sm">
             <tr>
               <th>ID Odoo</th>
               <th>Empresa</th>
@@ -165,7 +173,7 @@
               <td class="font-mono">{{ company.rfc }}</td>
               <td>
                 {% if company.has_fiel %}
-                  <div class="badge badge-success gap-1 whitespace-nowrap">
+                  <div class="inline-flex items-center gap-1 whitespace-nowrap px-2 py-0.5 rounded-full border border-[color:var(--eq-primary)]/30 bg-[color:var(--eq-primary)]/10 text-[color:var(--eq-primary)] text-xs font-semibold">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-4 h-4 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                     FIEL Descifrada
                   </div>
@@ -178,9 +186,13 @@
               </td>
               <td>
                 {% if company.is_local_tenant %}
-                  <div class="badge badge-primary gap-1 whitespace-nowrap">Activa en Aspeia</div>
+                  <div class="inline-flex items-center gap-1 whitespace-nowrap px-2 py-0.5 rounded-full border border-[color:var(--eq-primary)]/30 bg-[color:var(--eq-primary)]/10 text-[color:var(--eq-primary)] text-xs font-semibold">
+                    Activa en Eqidis
+                  </div>
                 {% else %}
-                  <div class="badge badge-outline gap-1 whitespace-nowrap">No Vinculada</div>
+                  <div class="inline-flex items-center gap-1 whitespace-nowrap px-2 py-0.5 rounded-full border border-base-300 bg-base-100 text-base-content/70 text-xs font-semibold">
+                    No Vinculada
+                  </div>
                 {% endif %}
               </td>
               <td>
@@ -208,7 +220,7 @@
               <td>
                 <div class="flex gap-2">
                   <button 
-                    class="btn btn-sm btn-outline btn-info" 
+                    class="btn btn-sm btn-outline" 
                     {% if not company.has_fiel %}disabled{% endif %} 
                     title="Configurar y Sincronizar Tenant"
                     hx-post="{% url 'fiscal:master_panel_sync' %}"
@@ -227,7 +239,7 @@
             {% empty %}
             <tr>
               <td colspan="6" class="text-center py-8 text-base-content/60">
-                No se encontraron empresas en UDU (Odoo).
+                No se encontraron empresas en Odoo.
               </td>
             </tr>
             {% endfor %}

@@ -30,7 +30,7 @@ def is_admin(user):
 class MasterPanelView(TemplateView):
     """
     Panel Maestro (Administrador Global).
-    Muestra todas las empresas de Odoo y su estatus de FIEL desde Kidi SAT (DynamoDB).
+    Muestra todas las empresas de Odoo y su estatus de FIEL desde Eqidis SAT (DynamoDB).
     Permite configuración masiva y sincronización general.
     """
     template_name = 'fiscal/master_panel.html'

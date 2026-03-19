@@ -245,8 +245,8 @@ ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 ACCOUNT_USER_MODEL_USERNAME_FIELD = 'username'
 ACCOUNT_EMAIL_VERIFICATION = 'optional'  # Change to 'mandatory' in production
 
-# Redirect after login to company selector
-LOGIN_REDIRECT_URL = '/seleccionar-empresa/'
+# Redirect after login (no empresa selector required)
+LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
 ACCOUNT_LOGOUT_REDIRECT_URL = '/'
 

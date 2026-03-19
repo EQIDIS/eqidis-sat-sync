@@ -1,5 +1,4 @@
-{% extends "base.html" %} {% block title %}Seleccionar Empresa - Aspeia
-Finance{% endblock %} {% block content %}
+{% extends "base.html" %} {% block title %}Seleccionar Empresa - Eqidis{% endblock %} {% block content %}
 <div class="min-h-screen flex items-center justify-center p-4">
   <div class="card w-full max-w-xl bg-base-100 shadow-2xl">
     <div class="card-body">
@@ -61,39 +60,55 @@ Finance{% endblock %} {% block content %}
         <div class="text-6xl mb-4">🏢</div>
         <h3 class="text-xl font-semibold text-base-content/70">Sin empresas</h3>
         <p class="text-base-content/50 mt-2">
-          No tienes acceso a ninguna empresa aún.
+          Aún no tienes ninguna empresa configurada.
         </p>
         <p class="text-base-content/50">
-          Contacta al administrador para que te agregue a una.
+          Puedes crear una empresa nueva o continuar sin empresa para configurar integraciones globales.
         </p>
       </div>
       {% endif %}
 
-      <!-- Create Company Button -->
-      <div class="text-center mt-8 mb-4">
-        <p class="text-base-content/60 mb-2">
-          ¿Quieres gestionar otra organización?
-        </p>
-        <a
-          href="{% url 'companies:crear_empresa' %}"
-          class="btn btn-outline btn-primary gap-2"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+      <!-- Actions -->
+      <div class="flex flex-col gap-3 mt-8 mb-4">
+        <!-- Crear empresa -->
+        <div class="text-center">
+          <p class="text-base-content/60 mb-2">
+            ¿Quieres gestionar otra organización?
+          </p>
+          <a
+            href="{% url 'companies:crear_empresa' %}"
+            class="btn btn-outline btn-primary gap-2 w-full md:w-auto"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 4v16m8-8H4"
-            />
-          </svg>
-          Dar de Alta Nueva Empresa
-        </a>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+            Dar de Alta Nueva Empresa
+          </a>
+        </div>
+
+        <!-- Continuar sin empresa -->
+        <div class="text-center">
+          <p class="text-base-content/60 mb-2">
+            ¿Solo quieres configurar la integración global (Odoo, etc.)?
+          </p>
+          <a
+            href="/"
+            class="btn btn-ghost w-full md:w-auto"
+          >
+            Continuar sin empresa
+          </a>
+        </div>
       </div>
 
       <!-- Footer -->

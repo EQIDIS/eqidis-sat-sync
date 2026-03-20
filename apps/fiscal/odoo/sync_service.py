@@ -325,7 +325,25 @@ class OdooInvoiceSyncService:
             # 3. Parsear el XML
             cfdi_data = CfdiXmlParser.parse(xml_content)
 
-            # 4. Determinar tipo de factura
+            # 4. Filtrar Tipos de Comprobante: Solo 'I' (Ingreso), 'E' (Egreso) y 'T' (Traslado)
+            # Ignorar 'N' (Nómina) y 'P' (Pago / REP)
+            if cfdi_data.tipo_comprobante in ('N', 'P'):
+                logger.info(f"Saltando CFDI {cfdi_uuid} por ser tipo {cfdi_data.tipo_comprobante} (Nómina/Pagos)")
+                sync_log.status = 'skipped'
+                sync_log.error_message = f'Tipo de comprobante {cfdi_data.tipo_comprobante} ignorado.'
+                sync_log.completed_at = timezone.now()
+                sync_log.save()
+                return {
+                    'status': 'skipped',
+                    'odoo_invoice_id': None,
+                    'message': f'Tipo {cfdi_data.tipo_comprobante} ignorado.'
+                }
+
+            # --- NUEVO: Validar estado SAT real ---
+            sat_status_raw = self._get_sat_status(cfdi_data)
+            sat_status = sat_status_raw.get('estado', 'Vigente')
+
+            # 5. Determinar tipo de factura
             move_type = self._get_move_type(cfdi_data, company_id)
 
             # 5. Buscar/crear partner
@@ -348,13 +366,17 @@ class OdooInvoiceSyncService:
             }
             cfdi_attachment_type = cfdi_type_map.get(move_type, 'I')
             
-            attachment_id = client.create_cfdi_attachment(
-                invoice_id=invoice_id,
-                xml_content_base64=xml_base64,
-                uuid=cfdi_data.uuid,
-                company_id=company_id,
-                cfdi_type=cfdi_attachment_type
-            )
+            try:
+                attachment_id = client.create_cfdi_attachment(
+                    invoice_id=invoice_id,
+                    xml_content_base64=xml_base64,
+                    uuid=cfdi_data.uuid,
+                    company_id=company_id,
+                    cfdi_type=cfdi_attachment_type,
+                    estado=sat_status
+                )
+            except Exception as e:
+                logger.warning(f"Error creando attachment para {cfdi_uuid}: {e}")
             
             # --- NUEVO: Vincular factura con adjunto (Campo técnico ADD) ---
             try:
@@ -489,7 +511,8 @@ class OdooInvoiceSyncService:
                         xml_content_base64=xml_base64,
                         uuid=cfdi_uuid,
                         company_id=company_id,
-                        cfdi_type=cfdi_type
+                        cfdi_type=cfdi_type,
+                        estado='Vigente'
                     )
                     action_taken = 'metadata_repaired'
                 except Exception as e:
@@ -659,7 +682,7 @@ class OdooInvoiceSyncService:
             logger.warning(f"Error creando impuesto genérico {sat_code} {tasa_pct}%: {e}")
             return None
     
-    # Constants for IEPS Whitelist
+    # Constants for IEPS Whitelist (Fuel, Junk Food, etc.) from ADD module
     IEPS_WHITELIST = {
         '50202200', '50202201', '50202202', '50202203', '50202204', '50202205', '50202206',
         '50202207', '50202208', '50202209', '50202210', '90101504', '90101502', '73131503',
@@ -669,7 +692,8 @@ class OdooInvoiceSyncService:
         '50131703', '50161800', '50161813', '50161814', '50161815', '50161500', '50161509',
         '50161510', '50161511', '50161512', '50192100', '50192109', '50192300', '50192301',
         '50192302', '50192303', '50192304', '50192400', '50192401', '50192403', '50192404',
-        '50192405', '50192406', '50193100', '50193101', '50193102', '73131906', '73131903'
+        '50192405', '50192406', '50193100', '50193101', '50193102', '73131906', '73131903',
+        '15101510', '15101511', '15101512' # Gasolina Magna, Premium, Diesel
     }
 
     def _quantize(self, amount: Decimal) -> Decimal:
@@ -771,12 +795,42 @@ class OdooInvoiceSyncService:
             for tras in (concepto.traslados or []):
                 key = f"TRAS_{tras['impuesto']}_{tras['tasa_o_cuota']}"
                 if key not in tax_summary:
-                    tax_summary[key] = {'type': 'traslado', 'impuesto': tras['impuesto'], 'tasa': tras['tasa_o_cuota'], 'importe': Decimal('0')}
+                    tasa_val = float(tras['tasa_o_cuota'] * 100)
+                    t_record = client.find_tax_extended(tasa_val, tax_type, company_id, tras.get('impuesto'), tras.get('tipo_factor', 'Tasa'))
+                    group_id = False
+                    group_name = f"Impuesto {tras['impuesto']}"
+                    if t_record and t_record.get('tax_group_id'):
+                        group_id = t_record['tax_group_id'][0]
+                        group_name = t_record['tax_group_id'][1]
+                        
+                    tax_summary[key] = {
+                        'type': 'traslado', 
+                        'impuesto': tras['impuesto'], 
+                        'tasa': tras['tasa_o_cuota'], 
+                        'importe': Decimal('0'),
+                        'group_id': group_id,
+                        'group_name': group_name
+                    }
                 tax_summary[key]['importe'] += tras['importe']
             for ret in (concepto.retenciones or []):
                 key = f"RET_{ret['impuesto']}_{ret['tasa_o_cuota']}"
                 if key not in tax_summary:
-                    tax_summary[key] = {'type': 'retencion', 'impuesto': ret['impuesto'], 'tasa': ret['tasa_o_cuota'], 'importe': Decimal('0')}
+                    tasa_val = float(ret['tasa_o_cuota'] * -100)
+                    t_record = client.find_tax_extended(tasa_val, tax_type, company_id, ret.get('impuesto'), 'Tasa')
+                    group_id = False
+                    group_name = f"Retención {ret['impuesto']}"
+                    if t_record and t_record.get('tax_group_id'):
+                        group_id = t_record['tax_group_id'][0]
+                        group_name = t_record['tax_group_id'][1]
+
+                    tax_summary[key] = {
+                        'type': 'retencion', 
+                        'impuesto': ret['impuesto'], 
+                        'tasa': ret['tasa_o_cuota'], 
+                        'importe': Decimal('0'),
+                        'group_id': group_id,
+                        'group_name': group_name
+                    }
                 tax_summary[key]['importe'] += ret['importe']
                 
         for key, t_data in tax_summary.items():
@@ -844,20 +898,32 @@ class OdooInvoiceSyncService:
             'display_type': 'payment_term',
         }
         
-        # 4. Reconciliar Centavos Sueltos
-        sum_debit = sum(l[2]['debit'] for l in move_lines)
-        sum_credit = sum(l[2]['credit'] for l in move_lines)
-        diff = sum_debit - sum_credit
-        if round(abs(diff), 2) > 0.00:
-            logger.info(f"Ajustando {diff} internamente en el CFDI para cuadrar débito/crédito.")
-            if diff > 0:
-                counterpart_line['credit'] += float(diff)
-                counterpart_line['balance'] -= float(diff)
+        # 4. Reconciliar Centavos Sueltos (Exact Balancing - ADD Module Style)
+        # Pass 1: Sum all existing debits/credits to find the exact discrepancy
+        total_balance_so_far = sum([Decimal(str(l[2]['debit'])) - Decimal(str(l[2]['credit'])) for l in move_lines])
+        
+        # Pass 2: The counterpart balance must be the exact negative of total_balance_so_far
+        target_counterpart_balance = -total_balance_so_far
+        
+        if Decimal(str(counterpart_line['balance'])) != target_counterpart_balance:
+            diff = target_counterpart_balance - Decimal(str(counterpart_line['balance']))
+            logger.info(f"Micro-ajuste de balance detectado: {diff}. Garantizando balance cero absoluto.")
+            counterpart_line['balance'] = float(target_counterpart_balance)
+            if target_counterpart_balance > 0:
+                counterpart_line['debit'] = float(target_counterpart_balance)
+                counterpart_line['credit'] = 0.0
             else:
-                counterpart_line['debit'] += float(abs(diff))
-                counterpart_line['balance'] += float(abs(diff))
+                counterpart_line['debit'] = 0.0
+                counterpart_line['credit'] = float(-target_counterpart_balance)
+            
+            # Ajustar amount_currency si es moneda local para consistencia
+            if not has_foreign_currency:
+                counterpart_line['amount_currency'] = counterpart_line['balance']
 
         move_lines.append((0, 0, counterpart_line))
+
+        # 5. Generar tax_totals JSON (Requerido para Odoo 16+ para evitar re-cálculos automáticos)
+        tax_totals = self._generate_tax_totals(cfdi_data, tax_summary, currency, company_currency_id, sign_base)
 
         ref = f"{cfdi_data.serie}{cfdi_data.folio}" if cfdi_data.serie else (cfdi_data.folio or '')
 
@@ -868,6 +934,7 @@ class OdooInvoiceSyncService:
             'invoice_date': cfdi_data.fecha.strftime('%Y-%m-%d'),
             'ref': ref,
             'line_ids': move_lines,
+            'tax_totals': tax_totals,
         }
 
         if currency:
@@ -879,12 +946,82 @@ class OdooInvoiceSyncService:
             narration = invoice_vals.get('narration', '')
             invoice_vals['narration'] = f"{narration}\nMétodo de pago: {cfdi_data.metodo_pago}".strip()
 
-        # Usar context para ignorar check_move_validity de odoo localmente 
-        # y así respetar los montos manuales calculados por el XML
+        # Usar context check_move_validity=False como el módulo ADD
         invoice_id = client.create('account.move', invoice_vals, context={'check_move_validity': False})
         logger.info(f"Factura Data-Driven creada en Odoo: ID={invoice_id}, ref={ref}")
 
         return invoice_id
+
+    def _generate_tax_totals(self, cfdi_data, tax_summary, currency, company_currency_id, sign_base):
+        """Genera el diccionario tax_totals en el formato JSON de Odoo 16+."""
+        tax_groups_payload = []
+        tax_amount_total = Decimal('0')
+        subtotal_xml = cfdi_data.subtotal - cfdi_data.descuento
+        
+        # Get rounding for precision fields
+        currency_rounding = currency.get('rounding', 0.01) if currency else 0.01
+        
+        for key, t_data in tax_summary.items():
+            amt = t_data['importe']
+            if t_data['type'] == 'retencion':
+                amt = -amt # Retenciones restan al total pero se muestran positivo en su línea técnica? 
+                           # En XML-RPC enviamos el valor que Odoo espera.
+            tax_amount_total += amt
+            
+            tax_groups_payload.append({
+                'id': t_data['group_id'],
+                'group_name': t_data['group_name'],
+                'tax_amount_currency': float(amt),
+                'tax_amount': float(amt),
+                'base_amount_currency': float(subtotal_xml),
+                'base_amount': float(subtotal_xml),
+                'display_base_amount_currency': float(subtotal_xml),
+                'display_base_amount': float(subtotal_xml),
+            })
+
+        return {
+            'currency_id': currency['id'] if currency else company_currency_id,
+            'currency_pd': currency_rounding,
+            'company_currency_id': company_currency_id,
+            'company_currency_pd': 0.01,
+            'has_tax_groups': True,
+            'subtotals': [{
+                'name': 'Subtotal',
+                'tax_groups': tax_groups_payload,
+                'tax_amount_currency': float(tax_amount_total),
+                'tax_amount': float(tax_amount_total),
+                'base_amount_currency': float(subtotal_xml),
+                'base_amount': float(subtotal_xml),
+            }],
+            'base_amount_currency': float(subtotal_xml),
+            'base_amount': float(subtotal_xml),
+            'tax_amount_currency': float(tax_amount_total),
+            'tax_amount': float(tax_amount_total),
+            'total_amount_currency': float(cfdi_data.total),
+            'total_amount': float(cfdi_data.total),
+            'display_in_company_currency': False,
+        }
+
+    def _get_sat_status(self, cfdi_data: CfdiParsedData) -> dict:
+        """Consulta el estado del CFDI directamente en el SAT usando cfdiclient."""
+        try:
+            from cfdiclient import Validacion
+            validador = Validacion()
+            response = validador.obtener_estado(
+                rfc_emisor=cfdi_data.rfc_emisor,
+                rfc_receptor=cfdi_data.rfc_receptor,
+                total=f"{cfdi_data.total:.2f}",
+                uuid=cfdi_data.uuid
+            )
+            logger.info(f"Estado SAT obtenido para {cfdi_data.uuid}: {response}")
+            return {
+                'estado': response.get('Estado') or 'Vigente',
+                'es_cancelable': response.get('EsCancelable'),
+                'estado_cancelacion': response.get('EstatusCancelacion')
+            }
+        except Exception as e:
+            logger.warning(f"No se pudo consultar estado SAT para {cfdi_data.uuid}: {e}")
+            return {'estado': 'Vigente'}
 
     def _create_invoice(self, cfdi_data: CfdiParsedData, partner_id: int,
                         lines: list, move_type: str, company_id: int) -> int:

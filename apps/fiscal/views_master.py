@@ -623,48 +623,197 @@ class MasterPanelDescargasEliminarView(View):
 @method_decorator(user_passes_test(is_admin), name='dispatch')
 class MasterPanelDescargaCfdisView(TemplateView):
     """
-    Muestra la tabla de TODOS los CFDIs obtenidos para una Empresa específica,
-    reutilizando el diseño visual de fiscal/cfdis.
+    Muestra la tabla de TODOS los CFDIs obtenidos para una Empresa específica.
+    La comparación con Odoo se carga bajo demanda con HTMX.
     """
     template_name = 'fiscal/master_panel_descargas_cfdis.html'
     
     def get_context_data(self, **kwargs):
         from apps.companies.models import Empresa
         from .models import CfdiDocument
+        from apps.integrations.odoo.models import OdooConnection
         from django.shortcuts import get_object_or_404
+        from django.core.paginator import Paginator
         context = super().get_context_data(**kwargs)
         
         company_id = self.kwargs.get('company_id')
         empresa = get_object_or_404(Empresa, id=company_id)
         
-        # Filtramos todos los CFDIs que pertenezcan a esta empresa
-        cfdis = CfdiDocument.objects.filter(
+        # Query base
+        cfdis_qs = CfdiDocument.objects.filter(
             company=empresa
         ).select_related('company', 'current_state_check').order_by('-fecha_emision')
         
+        # Stats locales (rápidos, sin llamadas a Odoo)
+        total = cfdis_qs.count()
+        total_nomina = cfdis_qs.filter(tipo_cfdi='N').count()
+        total_pago = cfdis_qs.filter(tipo_cfdi='P').count()
+        total_exportable = total - total_nomina - total_pago
+        total_creados = cfdis_qs.filter(creado_en_sistema=True).exclude(tipo_cfdi__in=['N', 'P']).count()
+        
+        # Paginación
+        page = self.request.GET.get('page', 1)
+        paginator = Paginator(cfdis_qs, 100)
+        page_obj = paginator.get_page(page)
+        
+        # Conexión Odoo
+        connection = OdooConnection.objects.filter(
+            empresa=empresa, status='active'
+        ).first()
+        
         context['empresa'] = empresa
-        context['solicitud'] = None # Removing old dependency in template
-        context['cfdis'] = cfdis
-        context['total_cfdis'] = cfdis.count()
+        context['solicitud'] = None
+        context['page_obj'] = page_obj
+        context['total_cfdis'] = total
+        context['total_nomina'] = total_nomina
+        context['total_pago'] = total_pago
+        context['total_exportable'] = total_exportable
+        context['total_creados'] = total_creados
+        context['has_odoo_connection'] = bool(connection)
+        context['company_id'] = company_id
         return context
+
+
+@method_decorator(user_passes_test(is_admin), name='dispatch')
+class MasterPanelOdooCompareView(View):
+    """
+    Endpoint HTMX: Compara UUIDs locales contra documentos digitales en Odoo.
+    Se llama bajo demanda para no saturar la carga de página.
+    """
+    def get(self, request, company_id, *args, **kwargs):
+        from apps.companies.models import Empresa
+        from .models import CfdiDocument
+        from apps.integrations.odoo.models import OdooConnection
+        from apps.fiscal.odoo.client import create_client_from_connection
+        from django.shortcuts import get_object_or_404
+        
+        empresa = get_object_or_404(Empresa, id=company_id)
+        connection = OdooConnection.objects.filter(
+            empresa=empresa, status='active'
+        ).first()
+        
+        if not connection:
+            return HttpResponse(
+                '<div class="alert alert-warning text-sm">Sin conexión Odoo activa.</div>'
+            )
+        
+        # Obtener UUIDs locales (solo exportables)
+        local_uuids = set(
+            str(u).lower() for u in 
+            CfdiDocument.objects.filter(
+                company=empresa
+            ).exclude(tipo_cfdi__in=['N', 'P']).values_list('uuid', flat=True)
+        )
+        
+        # Obtener documentos digitales de Odoo
+        try:
+            client = create_client_from_connection(connection)
+            odoo_attachments = client.search_read(
+                'ir.attachment',
+                [
+                    ('company_id', '=', connection.odoo_company_id),
+                    ('cfdi_type', 'in', ['I', 'SI', 'E', 'SE'])
+                ],
+                fields=['id', 'cfdi_uuid', 'cfdi_type', 'estado'],
+                limit=1000
+            )
+        except Exception as e:
+            return HttpResponse(
+                f'<div class="alert alert-error text-sm">Error conectando a Odoo: {e}</div>'
+            )
+        
+        odoo_uuids = set()
+        for att in odoo_attachments:
+            uuid_str = (att.get('cfdi_uuid') or '').strip().lower()
+            if uuid_str:
+                odoo_uuids.add(uuid_str)
+        
+        en_ambos = local_uuids & odoo_uuids
+        solo_local = local_uuids - odoo_uuids
+        solo_odoo = odoo_uuids - local_uuids
+        
+        # Actualizar creado_en_sistema para los que SÍ están en Odoo
+        if en_ambos:
+            CfdiDocument.objects.filter(
+                company=empresa,
+                uuid__in=list(en_ambos)
+            ).update(creado_en_sistema=True)
+        
+        # Marcar los que NO están en Odoo como no creados
+        if solo_local:
+            CfdiDocument.objects.filter(
+                company=empresa,
+                uuid__in=list(solo_local)
+            ).update(creado_en_sistema=False)
+        
+        html = f'''
+        <div class="grid grid-cols-3 gap-3">
+            <div class="stat bg-success/10 border border-success/20 rounded-xl py-3 px-4 text-center">
+                <div class="stat-title text-xs">En Odoo ✓</div>
+                <div class="stat-value text-2xl text-success font-bold">{len(en_ambos)}</div>
+            </div>
+            <div class="stat bg-warning/10 border border-warning/20 rounded-xl py-3 px-4 text-center">
+                <div class="stat-title text-xs">Solo en SAT Sync</div>
+                <div class="stat-value text-2xl text-warning font-bold">{len(solo_local)}</div>
+            </div>
+            <div class="stat bg-info/10 border border-info/20 rounded-xl py-3 px-4 text-center">
+                <div class="stat-title text-xs">Solo en Odoo</div>
+                <div class="stat-value text-2xl text-info font-bold">{len(solo_odoo)}</div>
+            </div>
+        </div>
+        <p class="text-xs text-base-content/50 mt-2 text-center">
+            Comparación actualizada. Se sincronizó el estado de {len(en_ambos)} documentos.
+        </p>
+        '''
+        return HttpResponse(html)
 
 @method_decorator(user_passes_test(is_admin), name='dispatch')
 class MasterPanelOdooSyncAllView(View):
     """
-    Exporta en segundo plano todos los CFDIs disponibles de todas las empresas
-    locales que tengan una conexión activa a Odoo.
+    Exporta en segundo plano CFDIs hacia Odoo.
+    Si recibe company_id en POST, solo procesa esa empresa.
+    Si no, procesa TODAS las empresas con conexión activa.
     """
     def post(self, request, *args, **kwargs):
         from apps.integrations.odoo.models import OdooConnection
         from apps.fiscal.odoo.tasks import sync_new_cfdis_to_odoo
+        from apps.fiscal.models import CfdiDocument
         
-        # Encolamos la tarea de sync hacia Odoo para cada empresa con conexión activa
-        active_connections = OdooConnection.objects.filter(status='active')
+        company_id = request.POST.get('company_id')
+        
+        if company_id:
+            # Exportar solo para una empresa específica
+            active_connections = OdooConnection.objects.filter(
+                empresa_id=company_id, status='active'
+            )
+        else:
+            # Exportar para TODAS las empresas
+            active_connections = OdooConnection.objects.filter(status='active')
+        
+        if not active_connections.exists():
+            messages.warning(request, "No hay conexiones Odoo activas para procesar.")
+            if company_id:
+                return redirect('fiscal:master_panel_descargas')
+            return redirect('fiscal:master_panel_descargas')
+        
+        # Resetear estados para forzar reprocesamiento
+        active_company_ids = active_connections.values_list('empresa_id', flat=True)
+        CfdiDocument.objects.filter(
+            company_id__in=active_company_ids
+        ).exclude(tipo_cfdi='P').update(creado_en_sistema=False)
+        
         count = 0
         for conn in active_connections:
             sync_new_cfdis_to_odoo.delay(conn.empresa_id, force_sync=True)
             count += 1
             
-        messages.success(request, f"¡Sincronización a Odoo Iniciada! Se procesarán las facturas de {count} empresas en segundo plano.")
+        empresa_label = f"empresa {company_id}" if company_id else f"{count} empresas"
+        messages.success(
+            request, 
+            f"¡Sincronización a Odoo Iniciada! Se procesarán TODOS los CFDIs de {empresa_label} en segundo plano."
+        )
+        
+        if company_id:
+            return redirect('fiscal:master_panel_descargas')
         return redirect('fiscal:master_panel_descargas')
 

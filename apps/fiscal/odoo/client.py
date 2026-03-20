@@ -404,7 +404,8 @@ class OdooClient:
 
     def create_cfdi_attachment(self, invoice_id: int, xml_content_base64: str,
                               uuid: str, filename: str = None,
-                              company_id: int = None, cfdi_type: str = 'I') -> int:
+                              company_id: int = None, cfdi_type: str = 'I',
+                              estado: str = 'Vigente') -> int:
         """Crea un ir.attachment con el XML del CFDI vinculado a una factura."""
         if not filename:
             filename = f"{uuid.upper()}.xml"
@@ -416,6 +417,7 @@ class OdooClient:
             'mimetype': 'application/xml',
             'type': 'binary',
             'cfdi_type': cfdi_type,
+            'estado': estado,
         }
         if company_id:
             attachment_vals['company_id'] = company_id

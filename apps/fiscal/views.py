@@ -1766,15 +1766,13 @@ class OdooImportView(TenantMixin, View):
 @method_decorator(login_required, name='dispatch')
 @method_decorator(require_POST, name='dispatch')
 class OdooExportView(TenantMixin, View):
-    """Sincroniza CFDIs de Aspeia hacia Odoo (HTMX)."""
+    """Sincroniza CFDIs de Aspeia hacia Odoo (HTMX). Delega al Celery task."""
 
     def post(self, request, *args, **kwargs):
         import json
-        from django.core.files.storage import default_storage
-        from django.utils import timezone
         from .models import CfdiDocument
-        from apps.integrations.odoo.models import OdooConnection, OdooSyncLog
-        from apps.fiscal.odoo.sync_service import OdooInvoiceSyncService
+        from apps.integrations.odoo.models import OdooConnection
+        from apps.fiscal.odoo.tasks import sync_new_cfdis_to_odoo
 
         connection = OdooConnection.objects.filter(
             empresa=self.empresa, status='active'
@@ -1783,68 +1781,23 @@ class OdooExportView(TenantMixin, View):
         if not connection:
             return HttpResponse('<div class="alert alert-warning">Sin conexión activa a Odoo</div>')
 
-        synced_uuids = OdooSyncLog.objects.filter(
-            connection=connection,
-            status='success',
-            direction='to_odoo'
-        ).values_list('cfdi_uuid', flat=True)
-
-        pending_cfdis = CfdiDocument.objects.filter(
+        # Resetear estados y encolar tarea de fondo con force_sync
+        CfdiDocument.objects.filter(
             company=self.empresa
-        ).exclude(uuid__in=synced_uuids)[:50]
+        ).exclude(tipo_cfdi='P').update(creado_en_sistema=False)
 
-        if not pending_cfdis.exists():
-            resp = HttpResponse('''
-                <div class="alert alert-info shadow-lg">
-                    <h3 class="font-bold">Sin CFDIs pendientes</h3>
-                    <p class="text-sm">Todos los CFDIs ya están sincronizados con Odoo.</p>
-                </div>
-            ''')
-            resp['HX-Trigger'] = json.dumps({'refreshCfdis': True})
-            return resp
-
-        synced = 0
-        exists = 0
-        errors = []
-        service = OdooInvoiceSyncService(connection)
-
-        for cfdi in pending_cfdis:
-            try:
-                xml_content = None
-                if hasattr(cfdi, 's3_xml_path') and cfdi.s3_xml_path:
-                    try:
-                        with default_storage.open(cfdi.s3_xml_path, 'rb') as f:
-                            xml_content = f.read().decode('utf-8')
-                    except Exception:
-                        pass
-                result = service.sync_cfdi_to_odoo(str(cfdi.uuid), xml_content)
-                if result.get('status') == 'exists':
-                    exists += 1
-                elif result.get('status') == 'created':
-                    synced += 1
-                else:
-                    errors.append(f"{str(cfdi.uuid)[:8]}: {result.get('message', 'Error')[:30]}")
-            except Exception as e:
-                errors.append(f"{str(cfdi.uuid)[:8]}: {str(e)[:30]}")
-
-        connection.last_sync = timezone.now()
-        connection.save()
-
-        total_pending = CfdiDocument.objects.filter(
+        total_exportable = CfdiDocument.objects.filter(
             company=self.empresa
-        ).exclude(uuid__in=synced_uuids).count()
-        remaining = max(0, total_pending - 50)
+        ).exclude(tipo_cfdi__in=['P', 'N']).count()
+
+        sync_new_cfdis_to_odoo.delay(self.empresa.id, force_sync=True)
 
         html = f'''
         <div class="alert alert-success shadow-lg mb-4">
-            <h3 class="font-bold">Sincronización completada</h3>
-            <p class="text-sm">Creados: {synced} | Ya existían: {exists} | Errores: {len(errors)}</p>
+            <h3 class="font-bold">¡Sincronización Iniciada!</h3>
+            <p class="text-sm">Se están procesando {total_exportable} CFDIs exportables en segundo plano (baches automáticos de 50). Revisa los logs del worker para ver el progreso.</p>
         </div>
         '''
-        if remaining > 0:
-            html += f'<div class="alert alert-info mb-4">Quedan {remaining} CFDIs pendientes. Haz clic de nuevo para continuar.</div>'
-        if errors:
-            html += f'<div class="alert alert-warning"><pre class="text-xs">{chr(10).join(errors[:5])}</pre></div>'
         resp = HttpResponse(html)
         resp['HX-Trigger'] = json.dumps({'refreshCfdis': True})
         return resp

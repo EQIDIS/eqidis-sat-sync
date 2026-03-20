@@ -94,16 +94,27 @@ def verify_odoo_connection_task(connection_id: int):
         return {'status': 'error', 'message': str(e)}
 
 
-@shared_task
-def sync_new_cfdis_to_odoo(empresa_id: int, request_id: int = None, 
+@shared_task(bind=True, time_limit=600, soft_time_limit=540)
+def sync_new_cfdis_to_odoo(self, empresa_id: int, request_id: int = None,
                            exclude_uuids: list = None, force_sync: bool = False):
-    """Sincroniza CFDIs nuevos de una descarga SAT hacia Odoo."""
+    """
+    Sincroniza CFDIs hacia Odoo en baches internos de 50.
+    
+    Procesa TODOS los CFDIs pendientes en una sola ejecución de tarea,
+    iterando internamente en lotes de 50 hasta que no queden más.
+    
+    Args:
+        empresa_id: ID de la empresa local
+        request_id: (Opcional) Filtrar por solicitud de descarga específica
+        exclude_uuids: (Deprecated, ignorado) Se mantiene por compatibilidad
+        force_sync: Si True, ignora estado previo y reprocesa todo
+    """
     from apps.fiscal.models import CfdiDocument
     from .sync_service import OdooInvoiceSyncService
 
-    logger.info(f"Sincronizando CFDIs nuevos a Odoo para empresa {empresa_id}")
-    exclude_uuids = exclude_uuids or []
+    logger.info(f"Sincronizando CFDIs a Odoo para empresa {empresa_id} (force={force_sync})")
 
+    # --- 1. Validar conexión ---
     connection = OdooConnection.objects.filter(
         empresa_id=empresa_id,
         status='active',
@@ -113,89 +124,117 @@ def sync_new_cfdis_to_odoo(empresa_id: int, request_id: int = None,
     if not connection:
         logger.info(f"No hay conexión Odoo activa para empresa {empresa_id}")
         return {'status': 'skipped', 'reason': 'No hay conexión Odoo activa'}
-        
+
     if not connection.password:
-        logger.error(f"Falla de Desencriptación: La contraseña de Odoo para la empresa {empresa_id} no pudo ser leída (posible cambio en SECRET_KEY). Abortando.")
+        logger.error(f"Contraseña de Odoo no legible para empresa {empresa_id}. Abortando.")
         return {'status': 'error', 'reason': 'Error de contraseña (InvalidToken)'}
 
-    cfdis_qs = CfdiDocument.objects.filter(company_id=empresa_id)
-    
-    if not force_sync:
-        synced_uuids = OdooSyncLog.objects.filter(
-            connection=connection,
-            status='success'
-        ).values_list('cfdi_uuid', flat=True)
-        cfdis_qs = cfdis_qs.exclude(uuid__in=synced_uuids)
-
-    cfdis_qs = cfdis_qs.exclude(uuid__in=exclude_uuids or [])
-
-    if request_id:
-        cfdis_qs = cfdis_qs.filter(download_package__request_id=request_id)
-
-    # Convertir a lista para no perder referencia tras las iteraciones
-    cfdis = list(cfdis_qs[:50])
-
-    logger.info(f"Encontrados {len(cfdis)} CFDIs para sincronizar en este lote.")
-
-    synced = 0
-    exists = 0
-    errors = 0
+    # --- 2. Construir queryset base (se reutiliza en cada iteración) ---
+    BATCH_SIZE = 50
+    total_synced = 0
+    total_exists = 0
+    total_errors = 0
+    total_skipped = 0
+    processed_uuids = set()  # UUIDs ya procesados en esta ejecución
+    batch_number = 0
 
     service = OdooInvoiceSyncService(connection)
 
-    for cfdi in cfdis:
-        exclude_uuids.append(str(cfdi.uuid))
-        try:
-            xml_content = None
-            if cfdi.s3_xml_path:
-                try:
-                    with default_storage.open(cfdi.s3_xml_path, 'rb') as f:
-                        xml_content = f.read().decode('utf-8')
-                except Exception as e:
-                    logger.warning(f"No se pudo leer XML de {cfdi.uuid}: {e}")
+    while True:
+        batch_number += 1
 
-            result = service.sync_cfdi_to_odoo(str(cfdi.uuid), xml_content)
+        # Construir queryset fresco en cada iteración
+        cfdis_qs = CfdiDocument.objects.filter(
+            company_id=empresa_id
+        ).exclude(tipo_cfdi='P')  # Siempre excluir Pagos a nivel DB
 
-            if result['status'] == 'created':
-                synced += 1
-                cfdi.creado_en_sistema = True
-                cfdi.save(update_fields=['creado_en_sistema'])
-            elif result['status'] == 'exists':
-                exists += 1
-                if not cfdi.creado_en_sistema:
+        if not force_sync:
+            # Modo automático: solo procesar los que NO se han creado
+            cfdis_qs = cfdis_qs.filter(creado_en_sistema=False)
+
+        # Excluir los que ya procesamos en esta misma ejecución
+        if processed_uuids:
+            cfdis_qs = cfdis_qs.exclude(uuid__in=list(processed_uuids))
+
+        if request_id:
+            cfdis_qs = cfdis_qs.filter(download_package__request_id=request_id)
+
+        # Tomar el siguiente lote
+        cfdis = list(cfdis_qs.order_by('id')[:BATCH_SIZE])
+
+        if not cfdis:
+            logger.info(f"No quedan más CFDIs por procesar. Total baches: {batch_number - 1}")
+            break
+
+        logger.info(f"Bache #{batch_number}: procesando {len(cfdis)} CFDIs...")
+
+        for cfdi in cfdis:
+            processed_uuids.add(cfdi.uuid)  # UUID nativo del ORM
+            try:
+                # Leer XML desde S3
+                xml_content = None
+                if cfdi.s3_xml_path:
+                    try:
+                        with default_storage.open(cfdi.s3_xml_path, 'rb') as f:
+                            xml_content = f.read().decode('utf-8')
+                    except Exception as e:
+                        logger.warning(f"No se pudo leer XML de {cfdi.uuid}: {e}")
+
+                # Sincronizar
+                result = service.sync_cfdi_to_odoo(str(cfdi.uuid), xml_content)
+                status = result.get('status', 'error')
+
+                if status == 'created':
+                    total_synced += 1
                     cfdi.creado_en_sistema = True
                     cfdi.save(update_fields=['creado_en_sistema'])
-            else:
-                errors += 1
+                elif status == 'exists':
+                    total_exists += 1
+                    if not cfdi.creado_en_sistema:
+                        cfdi.creado_en_sistema = True
+                        cfdi.save(update_fields=['creado_en_sistema'])
+                elif status == 'skipped':
+                    total_skipped += 1
+                    # Marcar como procesado para que no bloquee baches futuros
+                    cfdi.creado_en_sistema = True
+                    cfdi.save(update_fields=['creado_en_sistema'])
+                else:
+                    total_errors += 1
 
-        except Exception as e:
-            logger.error(f"Error sincronizando CFDI {cfdi.uuid}: {e}")
-            errors += 1
+            except Exception as e:
+                logger.error(f"Error sincronizando CFDI {cfdi.uuid}: {e}")
+                total_errors += 1
 
+        logger.info(
+            f"Bache #{batch_number} completado: "
+            f"{total_synced} creados, {total_exists} existían, "
+            f"{total_skipped} omitidos, {total_errors} errores"
+        )
+
+        # Si el lote fue menor a BATCH_SIZE, ya no hay más
+        if len(cfdis) < BATCH_SIZE:
+            break
+
+    # --- 3. Actualizar conexión ---
     connection.last_sync = timezone.now()
     connection.save()
 
-    logger.info(f"Sincronización completada: {synced} creados, {exists} existían, {errors} errores")
-
-    # Volver a calcular si quedan más CFDIs pendientes (excluyendo lo procesado)
-    restantes_qs = CfdiDocument.objects.filter(company_id=empresa_id)\
-        .exclude(uuid__in=OdooSyncLog.objects.filter(connection=connection, status='success').values('cfdi_uuid'))\
-        .exclude(uuid__in=exclude_uuids)
-
-    if request_id:
-        restantes_qs = restantes_qs.filter(download_package__request_id=request_id)
-
-    total_restantes = restantes_qs.count()
-    if total_restantes > 0 and len(cfdis) == 50:
-        logger.info(f"Quedan {total_restantes} CFDIs pendientes en cola. Encolando el siguiente lote...")
-        sync_new_cfdis_to_odoo.delay(empresa_id, request_id, exclude_uuids, force_sync)
+    total_processed = total_synced + total_exists + total_skipped + total_errors
+    logger.info(
+        f"Sincronización FINALIZADA para empresa {empresa_id}: "
+        f"{total_processed} procesados en {batch_number} baches "
+        f"({total_synced} creados, {total_exists} existían, "
+        f"{total_skipped} omitidos, {total_errors} errores)"
+    )
 
     return {
         'status': 'completed',
-        'synced': synced,
-        'exists': exists,
-        'errors': errors,
-        'total': len(cfdis)
+        'synced': total_synced,
+        'exists': total_exists,
+        'skipped': total_skipped,
+        'errors': total_errors,
+        'total': total_processed,
+        'batches': batch_number
     }
 
 

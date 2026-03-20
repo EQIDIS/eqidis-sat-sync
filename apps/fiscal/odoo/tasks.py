@@ -215,9 +215,9 @@ def sync_new_cfdis_to_odoo(self, empresa_id: int, request_id: int = None,
         if len(cfdis) < BATCH_SIZE:
             break
 
-    # --- 3. Actualizar conexión ---
-    connection.last_sync = timezone.now()
-    connection.save()
+    # --- 3. Finalizar ---
+    # Ya no actualizamos last_sync aquí porque lo hace la vista al arrancar
+    # para marcar el inicio de la sesión de progreso.
 
     total_processed = total_synced + total_exists + total_skipped + total_errors
     logger.info(

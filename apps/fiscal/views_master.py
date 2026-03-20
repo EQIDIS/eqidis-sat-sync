@@ -11,14 +11,14 @@ from django.views import View
 from django.http import JsonResponse
 
 from apps.fiscal.odoo.client import OdooClient, OdooClientError
-from apps.companies.models import Empresa
-from apps.integrations.odoo.models import OdooConnection
+from apps.integrations.odoo.models import OdooConnection, OdooSyncLog
 from apps.fiscal.models import CfdiCertificate, EmpresaSyncSettings
 from apps.core.encryption import ModelEncryption
 from django.utils import timezone
 from django.http import HttpResponse
 import json
 import base64
+import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -631,7 +631,6 @@ class MasterPanelDescargaCfdisView(TemplateView):
     def get_context_data(self, **kwargs):
         from apps.companies.models import Empresa
         from .models import CfdiDocument
-        from apps.integrations.odoo.models import OdooConnection, OdooSyncLog
         from django.shortcuts import get_object_or_404
         from django.core.paginator import Paginator
         context = super().get_context_data(**kwargs)
@@ -703,6 +702,37 @@ class MasterPanelDescargaCfdisView(TemplateView):
         context['total_exportable'] = total_exportable
         context['total_creados'] = total_creados
         context['total_errors'] = total_errors
+        # Verificar si hay una sincronización en curso para deshabilitar botones
+        is_sync_running = False
+        if connection:
+            # Solo consideramos pendientes RECIENTES (últimos 15 min)
+            # para evitar quedar bloqueados por tareas de workers que crashearon.
+            recent_threshold = timezone.now() - datetime.timedelta(minutes=5)
+            pending = OdooSyncLog.objects.filter(
+                connection=connection, 
+                status='pending',
+                created_at__gte=recent_threshold
+            ).count()
+            last_log = OdooSyncLog.objects.filter(connection=connection, direction='to_odoo').order_by('-id').first()
+            
+            has_recent_activity = False
+            if last_log:
+                has_recent_activity = (timezone.now() - last_log.created_at).total_seconds() < 60
+            
+            # Si hay pendientes o actividad reciente y no se ha completado...
+            if pending > 0 or has_recent_activity:
+                # Solo si no hemos terminado el total_exportable recientemente
+                processed_in_session = 0
+                if connection.last_sync:
+                    processed_in_session = OdooSyncLog.objects.filter(
+                        connection=connection,
+                        created_at__gte=connection.last_sync - datetime.timedelta(seconds=10)
+                    ).exclude(status='pending').count()
+                
+                if processed_in_session < total_exportable:
+                    is_sync_running = True
+
+        context['is_sync_running'] = is_sync_running
         context['has_odoo_connection'] = bool(connection)
         context['company_id'] = company_id
         return context
@@ -717,6 +747,8 @@ class MasterPanelSyncProgressView(View):
         from apps.integrations.odoo.models import OdooConnection, OdooSyncLog
         from .models import CfdiDocument
         from django.db.models import Count
+        from django.utils import timezone
+        import datetime
         
         connection = OdooConnection.objects.filter(
             empresa_id=company_id, status='active'
@@ -738,7 +770,9 @@ class MasterPanelSyncProgressView(View):
             direction='to_odoo'
         )
         if sync_start:
-            stats = stats.filter(created_at__gte=sync_start)
+            # Buffer de 10s para capturar logs que arrancan casi al mismo tiempo que el click
+            sync_start_buffered = sync_start - datetime.timedelta(seconds=10)
+            stats = stats.filter(created_at__gte=sync_start_buffered)
             
         stats = stats.values('status').annotate(total=Count('id'))
         
@@ -754,8 +788,6 @@ class MasterPanelSyncProgressView(View):
         # Si no hay 'pending', pero hubo actividad RECIENTE (menos de 60 segundos), seguimos haciendo polling.
         # Si han pasado más de 60s sin actividad y no hay pendientes, lo damos por terminado.
         last_log = OdooSyncLog.objects.filter(connection=connection, direction='to_odoo').order_by('-id').first()
-        from django.utils import timezone
-        import datetime
         
         has_recent_activity = False
         if last_log:
@@ -769,12 +801,37 @@ class MasterPanelSyncProgressView(View):
             click_delta = (timezone.now() - connection.last_sync).total_seconds()
             recent_click = click_delta < 120 # Ventana de 2 minutos para el arranque
             
-        is_running = pending > 0 or has_recent_activity or (recent_click and processed < total_exportable)
-        
-        if total_exportable == 0:
-            pct = 100
+        # NUEVO: Si no está corriendo y ya pasó el tiempo de "frescura" (2min),
+        # reseteamos los contadores visuales para no mostrar datos de sesiones viejas.
+        is_running = (pending > 0 or has_recent_activity or recent_click) and (processed < total_exportable)
+        is_fresh = False
+        if connection.last_sync:
+            is_fresh = (timezone.now() - connection.last_sync).total_seconds() < 120
+            
+        if not is_running and not is_fresh:
+            success = 0
+            errors = 0
+            skipped = 0
+            processed = 0
+            pct = 0
+            status_text = "Sincronización lista"
+            status_html = f'<div class="text-xs font-medium text-base-content/30 italic">{status_text}</div>'
+            bar_color = 'bg-base-200'
         else:
-            pct = min(100, int((success / total_exportable) * 100))
+            if total_exportable == 0:
+                pct = 100
+            else:
+                pct = min(100, int((processed / total_exportable) * 100))
+
+            if is_running:
+                status_text = "Sincronizando..."
+                status_html = f'<div class="inline-flex items-center gap-1.5 text-xs text-[color:var(--eq-primary)] font-bold"><span class="loading loading-spinner loading-xs"></span>{status_text}</div>'
+                bar_color = 'bg-[color:var(--eq-primary)]' if errors == 0 else 'bg-[color:var(--eq-secondary)]'
+            else:
+                status_text = "Sincronización completada"
+                status_html = f'<div class="text-xs font-bold text-[color:var(--eq-primary)]">✓ {status_text}</div>'
+                bar_color = 'bg-[color:var(--eq-primary)]' if errors == 0 else 'bg-[color:var(--eq-secondary)]'
+                pct = 100 # Forzar 100% si terminó
 
         # Ajustar intervalo y método de swap para evitar contenedores dobles
         poll_interval = "every 5s" if is_running else "every 30s"
@@ -783,21 +840,6 @@ class MasterPanelSyncProgressView(View):
         # Corregir zona horaria para el display
         local_sync_time = timezone.localtime(connection.last_sync) if connection.last_sync else None
         time_str = local_sync_time.strftime("%H:%M") if local_sync_time else ""
-        
-        # Color y estado del indicador con mejores labels
-        if is_running:
-            status_text = "Sincronizando..."
-            status_html = f'<div class="inline-flex items-center gap-1.5 text-xs text-[color:var(--eq-primary)] font-bold"><span class="loading loading-spinner loading-xs"></span>{status_text}</div>'
-            bar_color = 'bg-[color:var(--eq-primary)]' if errors == 0 else 'bg-[color:var(--eq-secondary)]'
-        elif processed > 0:
-            status_text = "Sincronización completada"
-            status_html = f'<div class="text-xs font-bold text-[color:var(--eq-primary)]">✓ {status_text}</div>'
-            bar_color = 'bg-[color:var(--eq-primary)]' if errors == 0 else 'bg-[color:var(--eq-secondary)]'
-        else:
-            status_text = "Sincronización lista"
-            status_html = f'<div class="text-xs font-medium text-base-content/30 italic">{status_text}</div>'
-            bar_color = 'bg-base-200'
-            pct = 0
 
         error_detail = ''
         if errors > 0:
@@ -1033,6 +1075,10 @@ class MasterPanelOdooSyncAllView(View):
             CfdiDocument.objects.filter(
                 company_id=conn.empresa_id
             ).exclude(tipo_cfdi='P').update(creado_en_sistema=False)
+            
+            # Limpiar cualquier log 'pending' viejo para esta conexión 
+            # (evita bloqueos por workers muertos)
+            OdooSyncLog.objects.filter(connection=conn, status='pending').delete()
             
             conn.last_sync = timezone.now()
             conn.save(update_fields=['last_sync'])

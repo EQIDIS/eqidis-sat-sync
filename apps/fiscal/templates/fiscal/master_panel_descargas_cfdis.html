@@ -41,7 +41,7 @@
             <form method="post" action="{% url 'fiscal:master_panel_odoo_sync_all' %}"
                   hx-post="{% url 'fiscal:master_panel_odoo_sync_all' %}"
                   hx-swap="none"
-                  hx-on::after-request="htmx.trigger('#sync-progress', 'load')"
+                  hx-on:htmx:after-request="htmx.trigger('#sync-progress', 'load')"
                   id="sync-form">
                 {% csrf_token %}
                 <input type="hidden" name="company_id" value="{{ company_id }}">

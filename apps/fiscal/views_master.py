@@ -762,7 +762,14 @@ class MasterPanelSyncProgressView(View):
             activity_delta = (timezone.now() - last_log.created_at).total_seconds()
             has_recent_activity = activity_delta < 60  # Actividad en el último minuto
             
-        is_running = pending > 0 or (has_recent_activity and processed < total_exportable and processed > 0)
+        # NUEVO: Considerar 'running' si se le dio click recientemente (últimos 2 minutos)
+        # aunque el worker aún no haya creado el primer log.
+        recent_click = False
+        if connection.last_sync:
+            click_delta = (timezone.now() - connection.last_sync).total_seconds()
+            recent_click = click_delta < 120 # Ventana de 2 minutos para el arranque
+            
+        is_running = pending > 0 or has_recent_activity or (recent_click and processed < total_exportable)
         
         if total_exportable == 0:
             pct = 100

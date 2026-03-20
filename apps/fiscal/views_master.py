@@ -662,7 +662,7 @@ class MasterPanelOdooSyncAllView(View):
         active_connections = OdooConnection.objects.filter(status='active')
         count = 0
         for conn in active_connections:
-            sync_new_cfdis_to_odoo.delay(conn.empresa_id)
+            sync_new_cfdis_to_odoo.delay(conn.empresa_id, force_sync=True)
             count += 1
             
         messages.success(request, f"¡Sincronización a Odoo Iniciada! Se procesarán las facturas de {count} empresas en segundo plano.")

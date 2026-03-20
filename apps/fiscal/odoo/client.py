@@ -120,6 +120,20 @@ class OdooClient:
                     f"Credenciales inválidas para {self.username}@{self.db}"
                 )
             logger.info(f"Autenticado en Odoo como UID={self.uid}")
+            
+            # Fetch user company_ids to use as fallback for context
+            if not self.allowed_company_id and not hasattr(self, '_user_company_ids'):
+                try:
+                    user_data = self.models.execute_kw(
+                        self.db, self.uid, self.password, 
+                        'res.users', 'read', [[self.uid]], {'fields': ['company_ids']}
+                    )
+                    if user_data and user_data[0].get('company_ids'):
+                        self._user_company_ids = user_data[0]['company_ids']
+                except Exception as e:
+                    logger.warning(f"No se pudieron obtener company_ids para UID {self.uid}: {e}")
+                    self._user_company_ids = []
+            
             return self.uid
         except xmlrpc.client.Fault as e:
             raise OdooAuthenticationError(f"Error de autenticación: {e.faultString}")
@@ -147,11 +161,20 @@ class OdooClient:
         kwargs = kwargs or {}
         
         # Inject standard multi-company context for Odoo 15+
+        context = kwargs.get('context', {})
+        needs_context_update = False
+        
         if self.allowed_company_id:
-            context = kwargs.get('context', {})
             if 'allowed_company_ids' not in context:
                 context['allowed_company_ids'] = [self.allowed_company_id]
-                kwargs['context'] = context
+                needs_context_update = True
+        elif getattr(self, '_user_company_ids', None):
+            if 'allowed_company_ids' not in context:
+                context['allowed_company_ids'] = self._user_company_ids
+                needs_context_update = True
+                
+        if needs_context_update:
+            kwargs['context'] = context
 
         try:
             return self.models.execute_kw(
@@ -381,7 +404,7 @@ class OdooClient:
 
     def create_cfdi_attachment(self, invoice_id: int, xml_content_base64: str,
                               uuid: str, filename: str = None,
-                              company_id: int = None) -> int:
+                              company_id: int = None, cfdi_type: str = 'I') -> int:
         """Crea un ir.attachment con el XML del CFDI vinculado a una factura."""
         if not filename:
             filename = f"{uuid.upper()}.xml"
@@ -392,6 +415,7 @@ class OdooClient:
             'res_id': invoice_id,
             'mimetype': 'application/xml',
             'type': 'binary',
+            'cfdi_type': cfdi_type,
         }
         if company_id:
             attachment_vals['company_id'] = company_id
@@ -399,9 +423,36 @@ class OdooClient:
             attachment_vals['cfdi_uuid'] = uuid.upper()
         except Exception:
             pass
-        attachment_id = self.create('ir.attachment', attachment_vals)
-        logger.info(f"Attachment CFDI creado: ID={attachment_id}, UUID={uuid}")
+            
+        attachment_id = self.create(
+            'ir.attachment', 
+            attachment_vals, 
+            context={'is_fiel_attachment': True}
+        )
+        logger.info(f"Attachment CFDI creado: ID={attachment_id}, UUID={uuid}, Type={cfdi_type}")
         return attachment_id
+
+    def update_invoice_attachment_link(self, invoice_id: int, attachment_id: int) -> bool:
+        """Vincula una factura con su adjunto a través del campo técnico attachment_id."""
+        return self.write('account.move', [invoice_id], {'attachment_id': attachment_id})
+
+    def find_attachment_by_res_id(self, res_model: str, res_id: int, 
+                                  filename_pattern: str = None) -> Optional[dict]:
+        """Busca un adjunto por modelo y ID de registro."""
+        domain = [
+            ['res_model', '=', res_model],
+            ['res_id', '=', res_id],
+        ]
+        if filename_pattern:
+            domain.append(['name', 'ilike', filename_pattern])
+            
+        attachments = self.search_read(
+            'ir.attachment',
+            domain,
+            fields=['id', 'name', 'cfdi_uuid', 'cfdi_total', 'date_cfdi'],
+            limit=1
+        )
+        return attachments[0] if attachments else None
 
     def create_l10n_mx_edi_document(self, invoice_id: int, attachment_id: int,
                                      state: str = 'invoice_received',

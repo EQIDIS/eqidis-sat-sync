@@ -305,8 +305,8 @@ class OdooInvoiceSyncService:
             existing_invoice = client.find_invoice_by_uuid_extended(cfdi_uuid, company_id)
 
             if existing_invoice:
-                # Ya existe, verificar estado
-                result = self._handle_existing_invoice(existing_invoice, sync_log)
+                # Ya existe, verificar estado y reparar metadatos si es necesario
+                result = self._handle_existing_invoice(existing_invoice, sync_log, xml_content)
                 return result
 
             # 2. Verificar que tenemos XML
@@ -338,12 +338,30 @@ class OdooInvoiceSyncService:
 
             # 8. Crear attachment con el XML
             xml_base64 = base64.b64encode(xml_content.encode('utf-8')).decode('utf-8')
+            
+            # Map move_type to CFDI Attachment Type defined by the ADD module
+            cfdi_type_map = {
+                'out_invoice': 'I',
+                'in_invoice': 'SI',
+                'out_refund': 'E',
+                'in_refund': 'SE'
+            }
+            cfdi_attachment_type = cfdi_type_map.get(move_type, 'I')
+            
             attachment_id = client.create_cfdi_attachment(
                 invoice_id=invoice_id,
                 xml_content_base64=xml_base64,
                 uuid=cfdi_data.uuid,
-                company_id=company_id
+                company_id=company_id,
+                cfdi_type=cfdi_attachment_type
             )
+            
+            # --- NUEVO: Vincular factura con adjunto (Campo técnico ADD) ---
+            try:
+                client.update_invoice_attachment_link(invoice_id, attachment_id)
+            except Exception as e:
+                logger.warning(f"No se pudo vincular attachment {attachment_id} a factura {invoice_id}: {e}")
+
 
             # 9. Crear l10n_mx_edi.document para que Odoo compute los campos
             cfdi_state = self._get_cfdi_state(move_type)
@@ -420,26 +438,92 @@ class OdooInvoiceSyncService:
         else:
             return 'invoice_sent'
     
-    def _handle_existing_invoice(self, invoice: dict, sync_log: OdooSyncLog) -> dict:
+    def _handle_existing_invoice(self, invoice: dict, sync_log: OdooSyncLog, 
+                                xml_content: str = None) -> dict:
         """
         Maneja el caso cuando la factura ya existe en Odoo.
 
-        Verifica el estado actual y registra información útil para debugging.
+        Verifica el estado actual y repara metadatos (vínculo de attachment) si falta.
         """
+        client = self._get_client()
+        invoice_id = invoice['id']
+        company_id = self.connection.odoo_company_id
+        
         # Obtener información de estados CFDI si están disponibles
         cfdi_uuid = invoice.get('l10n_mx_edi_cfdi_uuid', 'N/A')
         cfdi_state = invoice.get('l10n_mx_edi_cfdi_state', 'N/A')
         sat_state = invoice.get('l10n_mx_edi_cfdi_sat_state', 'N/A')
+        
+        # Reparar metadatos: Verificar si tiene el attachment vinculado (campo attachment_id del módulo ADD)
+        # Odoo search_read nos devolvió la factura con campos extendidos si existen.
+        current_att_id = invoice.get('attachment_id')
+        if isinstance(current_att_id, (list, tuple)):
+            current_att_id = current_att_id[0]
+            
+        action_taken = 'verified'
+        
+        if not current_att_id and xml_content:
+            # No tiene el vínculo técnico o está vacío (Metadata 0.00 en Odoo)
+            logger.info(f"Reparando metadatos para factura existente {invoice_id} ({cfdi_uuid})")
+            
+            # Buscar si ya existe un adjunto XML para esta factura
+            existing_att = client.find_attachment_by_res_id('account.move', invoice_id, f"{cfdi_uuid}.xml")
+            
+            if existing_att and not existing_att.get('cfdi_total'):
+                # Existe pero está vacío (Importe 0.00), lo borramos para re-crearlo con contexto
+                try:
+                    client.execute_kw('ir.attachment', 'unlink', [[existing_att['id']]])
+                    existing_att = None
+                except Exception: pass
+                
+            if not existing_att:
+                # Re-crear adjunto con el contexto 'is_fiel_attachment'
+                xml_base64 = base64.b64encode(xml_content.encode('utf-8')).decode('utf-8')
+                move_type = invoice.get('move_type', 'out_invoice')
+                cfdi_type_map = {'out_invoice': 'I', 'in_invoice': 'SI', 'out_refund': 'E', 'in_refund': 'SE'}
+                cfdi_type = cfdi_type_map.get(move_type, 'I')
+                
+                try:
+                    current_att_id = client.create_cfdi_attachment(
+                        invoice_id=invoice_id,
+                        xml_content_base64=xml_base64,
+                        uuid=cfdi_uuid,
+                        company_id=company_id,
+                        cfdi_type=cfdi_type
+                    )
+                    action_taken = 'metadata_repaired'
+                except Exception as e:
+                    logger.warning(f"Error re-creando attachment para {cfdi_uuid}: {e}")
+            else:
+                current_att_id = existing_att['id']
+                
+            # Forzar el vínculo técnico en account.move
+            if current_att_id:
+                try:
+                    client.update_invoice_attachment_link(invoice_id, current_att_id)
+                except Exception as e:
+                    logger.warning(f"Error vinculando invoice {invoice_id} a att {current_att_id}: {e}")
 
         sync_log.status = 'success'
-        sync_log.odoo_invoice_id = invoice['id']
-        sync_log.action_taken = 'verified'
+        sync_log.odoo_invoice_id = invoice_id
+        sync_log.action_taken = action_taken
         sync_log.response_data = {
             'invoice': invoice,
             'cfdi_uuid': cfdi_uuid,
             'cfdi_state': cfdi_state,
             'sat_state': sat_state,
+            'attachment_linked': bool(current_att_id)
         }
+        sync_log.completed_at = timezone.now()
+        sync_log.save()
+
+        message = (
+            f"Factura ya existe: {invoice.get('name', 'Sin nombre')} "
+            f"(estado: {invoice.get('state')}, CFDI: {cfdi_state}, SAT: {sat_state})"
+        )
+        if action_taken == 'metadata_repaired':
+            message += " [Metadatos reparados]"
+
         sync_log.completed_at = timezone.now()
         sync_log.save()
 
@@ -534,6 +618,46 @@ class OdooInvoiceSyncService:
         partner_id = client.create('res.partner', partner_vals)
         logger.info(f"Partner creado: ID={partner_id}, VAT={vat}, customer={is_customer}, supplier={is_supplier}")
         return partner_id
+
+    def _find_or_create_product(self, concepto: CfdiLineItem, company_id: int) -> Optional[int]:
+        client = self._get_client()
+        clave = concepto.clave_prod_serv
+        if not clave:
+            return None
+        
+        domain = [['default_code', '=', clave], '|', ['company_id', '=', company_id], ['company_id', '=', False]]
+        products = client.search_read('product.product', domain, fields=['id'], limit=1)
+        if products:
+            return products[0]['id']
+            
+        try:
+            return client.create('product.product', {
+                'name': concepto.descripcion or clave,
+                'default_code': clave,
+                'type': 'consu',
+                'company_id': company_id,
+            })
+        except Exception as e:
+            logger.warning(f"Error creando producto genérico {clave}: {e}")
+            return None
+
+    def _find_or_create_tax(self, client: 'OdooClient', tasa_pct: float, tax_type: str, 
+                            company_id: int, sat_code: str, factor_type: str) -> Optional[int]:
+        tax = client.find_tax_extended(tasa_pct, tax_type, company_id, sat_code, factor_type)
+        if tax:
+            return tax['id']
+            
+        try:
+            return client.create('account.tax', {
+                'name': f"{sat_code} {tasa_pct}% {tax_type}",
+                'amount_type': 'percent',
+                'amount': tasa_pct,
+                'type_tax_use': tax_type,
+                'company_id': company_id,
+            })
+        except Exception as e:
+            logger.warning(f"Error creando impuesto genérico {sat_code} {tasa_pct}%: {e}")
+            return None
     
     # Constants for IEPS Whitelist
     IEPS_WHITELIST = {
@@ -578,6 +702,7 @@ class OdooInvoiceSyncService:
         journal_id = journals[0]['id'] if journals else None
 
         move_lines = []
+
         
         # 1. Procesar Conceptos
         for concepto in cfdi_data.conceptos:

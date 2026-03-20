@@ -95,7 +95,8 @@ def verify_odoo_connection_task(connection_id: int):
 
 
 @shared_task
-def sync_new_cfdis_to_odoo(empresa_id: int, request_id: int = None, exclude_uuids: list = None):
+def sync_new_cfdis_to_odoo(empresa_id: int, request_id: int = None, 
+                           exclude_uuids: list = None, force_sync: bool = False):
     """Sincroniza CFDIs nuevos de una descarga SAT hacia Odoo."""
     from apps.fiscal.models import CfdiDocument
     from .sync_service import OdooInvoiceSyncService
@@ -117,14 +118,16 @@ def sync_new_cfdis_to_odoo(empresa_id: int, request_id: int = None, exclude_uuid
         logger.error(f"Falla de Desencriptación: La contraseña de Odoo para la empresa {empresa_id} no pudo ser leída (posible cambio en SECRET_KEY). Abortando.")
         return {'status': 'error', 'reason': 'Error de contraseña (InvalidToken)'}
 
-    synced_uuids = OdooSyncLog.objects.filter(
-        connection=connection,
-        status='success'
-    ).values_list('cfdi_uuid', flat=True)
+    cfdis_qs = CfdiDocument.objects.filter(company_id=empresa_id)
+    
+    if not force_sync:
+        synced_uuids = OdooSyncLog.objects.filter(
+            connection=connection,
+            status='success'
+        ).values_list('cfdi_uuid', flat=True)
+        cfdis_qs = cfdis_qs.exclude(uuid__in=synced_uuids)
 
-    cfdis_qs = CfdiDocument.objects.filter(company_id=empresa_id)\
-        .exclude(uuid__in=synced_uuids)\
-        .exclude(uuid__in=exclude_uuids)
+    cfdis_qs = cfdis_qs.exclude(uuid__in=exclude_uuids or [])
 
     if request_id:
         cfdis_qs = cfdis_qs.filter(download_package__request_id=request_id)
@@ -185,7 +188,7 @@ def sync_new_cfdis_to_odoo(empresa_id: int, request_id: int = None, exclude_uuid
     total_restantes = restantes_qs.count()
     if total_restantes > 0 and len(cfdis) == 50:
         logger.info(f"Quedan {total_restantes} CFDIs pendientes en cola. Encolando el siguiente lote...")
-        sync_new_cfdis_to_odoo.delay(empresa_id, request_id, exclude_uuids)
+        sync_new_cfdis_to_odoo.delay(empresa_id, request_id, exclude_uuids, force_sync)
 
     return {
         'status': 'completed',

@@ -331,12 +331,9 @@ class OdooInvoiceSyncService:
             # 5. Buscar/crear partner
             partner_id = self._find_or_create_partner(cfdi_data, move_type, company_id)
 
-            # 6. Preparar líneas de factura
-            invoice_lines = self._prepare_invoice_lines(cfdi_data, move_type, company_id)
-
-            # 7. Crear la factura (sin UUID - será computado)
+            # 6. Crear la factura Date-Driven (sin UUID - será computado)
             invoice_id = self._create_invoice_base(
-                cfdi_data, partner_id, invoice_lines, move_type, company_id
+                cfdi_data, partner_id, move_type, company_id
             )
 
             # 8. Crear attachment con el XML
@@ -538,214 +535,205 @@ class OdooInvoiceSyncService:
         logger.info(f"Partner creado: ID={partner_id}, VAT={vat}, customer={is_customer}, supplier={is_supplier}")
         return partner_id
     
-    def _prepare_invoice_lines(self, cfdi_data: CfdiParsedData,
-                                move_type: str, company_id: int) -> list:
-        """
-        Prepara las líneas de la factura para Odoo.
-        
-        Crea productos automáticamente si no existen (compartidos entre empresas).
-        Maneja traslados (IVA+) y retenciones (ISR-, IVA retenido-).
-        """
-        client = self._get_client()
-        lines = []
-        tax_type = 'sale' if move_type in ('out_invoice', 'out_refund') else 'purchase'
-        
-        for concepto in cfdi_data.conceptos:
-            # Buscar o crear producto
-            try:
-                product_id = self._find_or_create_product(concepto, company_id)
-            except Exception as e:
-                logger.warning(f"No se pudo crear producto para {concepto.clave_prod_serv}: {e}")
-                product_id = None
-            
-            # Mapear impuestos
-            tax_ids = []
-            
-            # Traslados (IVA positivo)
-            if concepto.traslados:
-                for traslado in concepto.traslados:
-                    # Convertir tasa a porcentaje (0.16 → 16.0)
-                    tasa_pct = float(traslado['tasa_o_cuota']) * 100
-                    
-                    # Buscar o crear impuesto
-                    tax_id = self._find_or_create_tax(
-                        client, 
-                        amount=tasa_pct, 
-                        tax_type=tax_type, 
-                        company_id=company_id,
-                        sat_code=traslado.get('impuesto'),
-                        factor_type=traslado.get('tipo_factor')
-                    )
-                    
-                    if tax_id:
-                        tax_ids.append(tax_id)
-            
-            # Retenciones (negativas)
-            if concepto.retenciones:
-                for retencion in concepto.retenciones:
-                    # Las retenciones son negativas
-                    tasa = retencion.get('tasa_o_cuota', 0) or 0
-                    tasa_pct = float(tasa) * -100  # Negativo para retención
-                    
-                    if tasa_pct != 0:
-                        tax_id = self._find_or_create_tax(
-                            client, 
-                            amount=tasa_pct, 
-                            tax_type=tax_type, 
-                            company_id=company_id,
-                            sat_code=retencion.get('impuesto'),
-                            factor_type='Tasa' # Default para retenciones si no viene
-                        )
-                        if tax_id:
-                            tax_ids.append(tax_id)
-            
-            # Línea CON producto (si se pudo crear/encontrar)
-            line_vals = {
-                'name': f"[{concepto.clave_prod_serv}] {concepto.descripcion}",
-                'quantity': float(concepto.cantidad),
-                'price_unit': float(concepto.valor_unitario),
-                'discount': float(concepto.descuento / concepto.importe * 100) if concepto.importe else 0,
-                'tax_ids': [(6, 0, tax_ids)],
-            }
-            
-            # Agregar product_id si existe
-            if product_id:
-                line_vals['product_id'] = product_id
-            
-            lines.append((0, 0, line_vals))
-        
-        return lines
+    # Constants for IEPS Whitelist
+    IEPS_WHITELIST = {
+        '50202200', '50202201', '50202202', '50202203', '50202204', '50202205', '50202206',
+        '50202207', '50202208', '50202209', '50202210', '90101504', '90101502', '73131503',
+        '50211500', '50211502', '50211503', '50211504', '50211506', '70141519', '15101505',
+        '15101513', '15101514', '15101515', '50202303', '50202304', '50202306', '50202307',
+        '50202308', '50202309', '50202311', '73131504', '50131700', '50131701', '50131702',
+        '50131703', '50161800', '50161813', '50161814', '50161815', '50161500', '50161509',
+        '50161510', '50161511', '50161512', '50192100', '50192109', '50192300', '50192301',
+        '50192302', '50192303', '50192304', '50192400', '50192401', '50192403', '50192404',
+        '50192405', '50192406', '50193100', '50193101', '50193102', '73131906', '73131903'
+    }
 
-    def _find_or_create_tax(self, client: OdooClient, amount: float, tax_type: str, 
-                            company_id: int, sat_code: str = None, factor_type: str = None) -> Optional[int]:
-        """
-        Busca o crea un impuesto en Odoo.
-        """
-        try:
-            # 1. Buscar impuesto existente
-            tax = client.find_tax_extended(amount, tax_type, company_id, sat_code, factor_type)
-            if tax:
-                return tax['id']
-            
-            # 2. Si no existe, crearlo
-            logger.info(f"Creando impuesto faltante: {amount}% {tax_type} SAT={sat_code}")
-            
-            # Nombres legibles
-            sat_names = {'001': 'ISR', '002': 'IVA', '003': 'IEPS'}
-            type_names = {'sale': 'Ventas', 'purchase': 'Compras'}
-            
-            sat_name = sat_names.get(sat_code, sat_code or 'Tax')
-            type_name = type_names.get(tax_type, tax_type)
-            factor_label = f" ({factor_type})" if factor_type else ""
-            
-            name = f"{sat_name} {abs(amount)}% {type_name}{factor_label}"
-            
-            tax_vals = {
-                'name': name,
-                'amount': amount,
-                'type_tax_use': tax_type,
-                'company_id': company_id,
-                'description': sat_code,
-                'amount_type': 'percent',
-            }
-            
-            # Campos SAT específicos del módulo itadmin
-            if sat_code:
-                tax_vals['impuesto'] = sat_code
-            if factor_type:
-                tax_vals['l10n_mx_factor_type'] = factor_type
-                
-            return client.create_tax(tax_vals)
-            
-        except Exception as e:
-            logger.error(f"Error gestionando impuesto {amount}%: {e}")
-            return None
-    
-    def _find_or_create_product(self, concepto: CfdiLineItem, company_id: int) -> Optional[int]:
-        """
-        Busca un producto existente basado en ClaveProdServ.
+    def _quantize(self, amount: Decimal) -> Decimal:
+        from decimal import ROUND_HALF_UP
+        return amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
-        En entornos multi-empresa, solo usamos productos que:
-        1. Sean compartidos (company_id = False)
-        2. Pertenezcan a la misma empresa
-
-        NO creamos productos automáticamente para evitar conflictos multi-empresa.
-        Si no existe un producto válido, retorna None y la línea se crea sin product_id.
-        """
-        client = self._get_client()
-        clave = concepto.clave_prod_serv
-
-        if not clave:
-            return None
-
-        # Buscar producto por código SAT - SOLO compartidos o de nuestra empresa
-        products = client.search_read(
-            'product.product',
-            [
-                ['default_code', '=', clave],
-                '|',
-                ['company_id', '=', False],
-                ['company_id', '=', company_id]
-            ],
-            fields=['id', 'company_id'],
-            limit=1
-        )
-        
-        if products:
-            return products[0]['id']
-
-        # Verificar si existe en otra empresa
-        products_other = client.search_read(
-            'product.product',
-            [['default_code', '=', clave]],
-            fields=['id', 'company_id'],
-            limit=1
-        )
-
-        if products_other:
-            # Producto existe pero pertenece a otra empresa
-            logger.warning(
-                f"Producto {clave} existe pero pertenece a otra empresa. "
-                f"Creando línea de factura sin product_id."
-            )
-            return None
-
-        # Producto no existe - NO creamos automáticamente para evitar conflictos
-        # La línea se creará sin product_id
-        logger.debug(f"Producto {clave} no existe. Creando línea de factura sin product_id.")
-        return None
-    
     def _create_invoice_base(self, cfdi_data: CfdiParsedData, partner_id: int,
-                              lines: list, move_type: str, company_id: int) -> int:
+                             move_type: str, company_id: int) -> int:
         """
-        Crea la factura base en Odoo (sin UUID - será computado desde l10n_mx_edi.document).
-
-        En Odoo 18, el campo l10n_mx_edi_cfdi_uuid es computado, no se puede
-        escribir directamente. El UUID se obtiene del attachment vinculado
-        a través de l10n_mx_edi.document.
-
-        Args:
-            cfdi_data: Datos parseados del CFDI
-            partner_id: ID del partner en Odoo
-            lines: Líneas de factura preparadas
-            move_type: Tipo de movimiento (in_invoice, out_invoice, etc.)
-            company_id: ID de la empresa en Odoo
-
-        Returns:
-            ID de la factura creada
+        Crea la factura base en Odoo usando un enfoque Data-Driven (como ADD).
+        Construye manualmente los apuntes de product, tax, y payment_term.
         """
         client = self._get_client()
+        is_supplier = move_type in ('in_invoice', 'in_refund')
+        tax_type = 'purchase' if is_supplier else 'sale'
 
-        # Buscar moneda
-        currencies = client.search_read(
-            'res.currency',
-            [['name', '=', cfdi_data.moneda]],
-            fields=['id'],
-            limit=1
-        )
-        currency_id = currencies[0]['id'] if currencies else None
+        currencies = client.search_read('res.currency', [['name', '=', cfdi_data.moneda]], fields=['id', 'name'])
+        currency = currencies[0] if currencies else None
 
-        # Referencia con serie y folio
+        company = client.search_read('res.company', [['id', '=', company_id]], fields=['currency_id'])
+        company_currency_id = company[0]['currency_id'][0] if company and company[0].get('currency_id') else None
+        
+        has_foreign_currency = currency and currency['id'] != company_currency_id
+        sign_base = 1 if move_type in ('in_invoice', 'out_refund') else -1
+        tipo_cambio = cfdi_data.tipo_cambio or Decimal('1')
+        
+        journals = client.search_read('account.journal', 
+            [['type', '=', 'purchase' if is_supplier else 'sale'], ['company_id', '=', company_id]], 
+            limit=1, fields=['id', 'default_account_id'])
+        journal_id = journals[0]['id'] if journals else None
+
+        move_lines = []
+        
+        # 1. Procesar Conceptos
+        for concepto in cfdi_data.conceptos:
+            neto_xml = concepto.importe - concepto.descuento
+            product_id = self._find_or_create_product(concepto, company_id)
+            account_id = client.get_product_account(product_id, is_supplier, journal_id) if product_id else None
+            if not account_id and journals and journals[0].get('default_account_id'):
+                account_id = journals[0]['default_account_id'][0]
+
+            amount_company = self._quantize((neto_xml * tipo_cambio) if has_foreign_currency else neto_xml)
+            balance = amount_company * sign_base
+            
+            amount_currency = self._quantize(neto_xml * sign_base if has_foreign_currency else balance)
+
+            iva_tras = next((t for t in (concepto.traslados or []) if t.get('impuesto') == '002'), None)
+            ieps_tras = next((t for t in (concepto.traslados or []) if t.get('impuesto') == '003'), None)
+            
+            ieps_inferido = Decimal('0')
+            base_iva = Decimal('0')
+            if iva_tras:
+                base_iva = Decimal(str(iva_tras.get('base', '0')))
+                if base_iva < neto_xml and not ieps_tras and concepto.clave_prod_serv in self.IEPS_WHITELIST:
+                    ieps_inferido = neto_xml - base_iva
+
+            all_taxes_xml = (concepto.traslados or []) + (concepto.retenciones or [])
+            tax_ids_base = []
+            
+            for tax in all_taxes_xml:
+                tasa_pct = (tax['tasa_o_cuota'] * 100) if tax in (concepto.traslados or []) else (tax['tasa_o_cuota'] * -100)
+                if tasa_pct != 0:
+                    t_id = self._find_or_create_tax(client, float(tasa_pct), tax_type, company_id, tax.get('impuesto'), tax.get('tipo_factor', 'Tasa'))
+                    if t_id:
+                        tax_ids_base.append(t_id)
+
+            def create_line_vals(name, amount_val, t_ids, is_ieps=False):
+                amt_comp = self._quantize((amount_val * tipo_cambio) if has_foreign_currency else amount_val)
+                bal = amt_comp * sign_base
+                amt_curr = self._quantize(amount_val * sign_base if has_foreign_currency else bal)
+                return {
+                    'name': name,
+                    'account_id': account_id,
+                    'product_id': product_id,
+                    'quantity': float(concepto.cantidad) if not is_ieps else 1.0,
+                    'price_unit': float(amount_val / concepto.cantidad) if not is_ieps and float(concepto.cantidad) > 0 else float(amount_val),
+                    'balance': float(bal),
+                    'debit': float(bal) if bal > 0 else 0.0,
+                    'credit': float(-bal) if bal < 0 else 0.0,
+                    'currency_id': currency['id'] if currency else None,
+                    'amount_currency': float(amt_curr),
+                    'display_type': 'product',
+                    'tax_ids': [(6, 0, t_ids)] if t_ids else [],
+                }
+            
+            if ieps_inferido > 0:
+                base_line = create_line_vals(f"[{concepto.clave_prod_serv}] {concepto.descripcion}", base_iva, tax_ids_base)
+                move_lines.append((0, 0, base_line))
+                ieps_line = create_line_vals(f"[{concepto.clave_prod_serv}] {concepto.descripcion} (IEPS implícito)", ieps_inferido, [], True)
+                move_lines.append((0, 0, ieps_line))
+            else:
+                prod_line = create_line_vals(f"[{concepto.clave_prod_serv}] {concepto.descripcion}", neto_xml, tax_ids_base)
+                move_lines.append((0, 0, prod_line))
+        
+        # 2. Procesar Impuestos (Taxes Consolidados)
+        tax_summary = {}
+        for concepto in cfdi_data.conceptos:
+            for tras in (concepto.traslados or []):
+                key = f"TRAS_{tras['impuesto']}_{tras['tasa_o_cuota']}"
+                if key not in tax_summary:
+                    tax_summary[key] = {'type': 'traslado', 'impuesto': tras['impuesto'], 'tasa': tras['tasa_o_cuota'], 'importe': Decimal('0')}
+                tax_summary[key]['importe'] += tras['importe']
+            for ret in (concepto.retenciones or []):
+                key = f"RET_{ret['impuesto']}_{ret['tasa_o_cuota']}"
+                if key not in tax_summary:
+                    tax_summary[key] = {'type': 'retencion', 'impuesto': ret['impuesto'], 'tasa': ret['tasa_o_cuota'], 'importe': Decimal('0')}
+                tax_summary[key]['importe'] += ret['importe']
+                
+        for key, t_data in tax_summary.items():
+            tasa_pct = float(t_data['tasa'] * 100) if t_data['type'] == 'traslado' else float(t_data['tasa'] * -100)
+            if tasa_pct == 0:
+                continue
+                
+            tax_id = self._find_or_create_tax(client, tasa_pct, tax_type, company_id, t_data['impuesto'], 'Tasa')
+            tax_amount_xml = t_data['importe']
+            if t_data['type'] == 'retencion':
+                tax_amount_xml = -tax_amount_xml
+                
+            tax_amount_company = self._quantize((tax_amount_xml * tipo_cambio) if has_foreign_currency else tax_amount_xml)
+            tax_balance = tax_amount_company * sign_base
+            tax_amount_currency = self._quantize(tax_amount_xml * sign_base if has_foreign_currency else tax_balance)
+            
+            tax_account_id = None
+            tax_repartition_line_id = False
+            if tax_id:
+                reps = client.search_read('account.tax.repartition.line', 
+                                          [['tax_id', '=', tax_id], ['repartition_type', '=', 'tax']], 
+                                          fields=['account_id', 'id'], limit=1)
+                if reps:
+                    tax_repartition_line_id = reps[0]['id']
+                    if reps[0].get('account_id'):
+                        tax_account_id = reps[0]['account_id'][0]
+                    
+            if not tax_account_id and journals and journals[0].get('default_account_id'):
+                tax_account_id = journals[0]['default_account_id'][0]
+                
+            tax_line = {
+                'name': f"Impuesto {t_data['impuesto']} {tasa_pct}%",
+                'account_id': tax_account_id,
+                'balance': float(tax_balance),
+                'debit': float(tax_balance) if tax_balance > 0 else 0.0,
+                'credit': float(-tax_balance) if tax_balance < 0 else 0.0,
+                'currency_id': currency['id'] if currency else None,
+                'amount_currency': float(tax_amount_currency),
+                'display_type': 'tax',
+                'tax_line_id': tax_id,
+                'tax_repartition_line_id': tax_repartition_line_id,
+                'partner_id': partner_id,
+            }
+            move_lines.append((0, 0, tax_line))
+
+        # 3. Línea Contrapartida (Receivable/Payable)
+        net_total_xml = cfdi_data.total
+        payable_account_id = client.get_partner_account(partner_id, is_supplier)
+        if not payable_account_id:
+            logger.warning(f"Partner {partner_id} sin cuenta CxC/CxP, usando diario por defecto.")
+            payable_account_id = journal_id
+            
+        counterpart_company = self._quantize((net_total_xml * tipo_cambio) if has_foreign_currency else net_total_xml)
+        counterpart_balance = -counterpart_company * sign_base
+        counterpart_amount_currency = self._quantize(-net_total_xml * sign_base if has_foreign_currency else counterpart_balance)
+        
+        counterpart_line = {
+            'account_id': payable_account_id,
+            'balance': float(counterpart_balance),
+            'debit': float(counterpart_balance) if counterpart_balance > 0 else 0.0,
+            'credit': float(-counterpart_balance) if counterpart_balance < 0 else 0.0,
+            'currency_id': currency['id'] if currency else None,
+            'amount_currency': float(counterpart_amount_currency),
+            'partner_id': partner_id,
+            'display_type': 'payment_term',
+        }
+        
+        # 4. Reconciliar Centavos Sueltos
+        sum_debit = sum(l[2]['debit'] for l in move_lines)
+        sum_credit = sum(l[2]['credit'] for l in move_lines)
+        diff = sum_debit - sum_credit
+        if round(abs(diff), 2) > 0.00:
+            logger.info(f"Ajustando {diff} internamente en el CFDI para cuadrar débito/crédito.")
+            if diff > 0:
+                counterpart_line['credit'] += float(diff)
+                counterpart_line['balance'] -= float(diff)
+            else:
+                counterpart_line['debit'] += float(abs(diff))
+                counterpart_line['balance'] += float(abs(diff))
+
+        move_lines.append((0, 0, counterpart_line))
+
         ref = f"{cfdi_data.serie}{cfdi_data.folio}" if cfdi_data.serie else (cfdi_data.folio or '')
 
         invoice_vals = {
@@ -754,22 +742,22 @@ class OdooInvoiceSyncService:
             'company_id': company_id,
             'invoice_date': cfdi_data.fecha.strftime('%Y-%m-%d'),
             'ref': ref,
-            'invoice_line_ids': lines,
-            # Nota: NO incluimos l10n_mx_edi_cfdi_uuid aquí porque es computado
+            'line_ids': move_lines,
         }
 
-        if currency_id:
-            invoice_vals['currency_id'] = currency_id
+        if currency:
+            invoice_vals['currency_id'] = currency['id']
 
-        # Campos adicionales opcionales para mejor trazabilidad
         if cfdi_data.forma_pago:
             invoice_vals['narration'] = f"Forma de pago: {cfdi_data.forma_pago}"
         if cfdi_data.metodo_pago:
             narration = invoice_vals.get('narration', '')
             invoice_vals['narration'] = f"{narration}\nMétodo de pago: {cfdi_data.metodo_pago}".strip()
 
-        invoice_id = client.create('account.move', invoice_vals)
-        logger.info(f"Factura base creada en Odoo: ID={invoice_id}, ref={ref}")
+        # Usar context para ignorar check_move_validity de odoo localmente 
+        # y así respetar los montos manuales calculados por el XML
+        invoice_id = client.create('account.move', invoice_vals, context={'check_move_validity': False})
+        logger.info(f"Factura Data-Driven creada en Odoo: ID={invoice_id}, ref={ref}")
 
         return invoice_id
 

@@ -177,13 +177,13 @@ class OdooClient:
         """Lee registros por sus IDs."""
         return self.execute_kw(model, 'read', [ids], {'fields': fields or []})
 
-    def create(self, model: str, values: dict) -> int:
-        """Crea un nuevo registro."""
-        return self.execute_kw(model, 'create', [values])
+    def create(self, model: str, values: dict, **kwargs) -> int:
+        """Crea un nuevo registro. Acepta kwargs como context."""
+        return self.execute_kw(model, 'create', [values], kwargs)
 
-    def write(self, model: str, ids: list[int], values: dict) -> bool:
-        """Actualiza registros existentes."""
-        return self.execute_kw(model, 'write', [ids, values])
+    def write(self, model: str, ids: list[int], values: dict, **kwargs) -> bool:
+        """Actualiza registros existentes. Acepta kwargs como context."""
+        return self.execute_kw(model, 'write', [ids, values], kwargs)
 
     def search_count(self, model: str, domain: list) -> int:
         """Cuenta registros que coinciden con el dominio."""
@@ -453,6 +453,39 @@ class OdooClient:
         except OdooClientError as e:
             logger.warning(f"No se pudo actualizar estado SAT: {e}")
             return False
+
+    def get_product_account(self, product_id: int, is_supplier: bool, journal_id: int = None) -> Optional[int]:
+        """Obtiene la cuenta contable de un producto, su categoría o el diario por defecto."""
+        product = self.read('product.product', [product_id], 
+                            ['property_account_expense_id', 'property_account_income_id', 'categ_id'])
+        if not product:
+            return None
+        product = product[0]
+        
+        field = 'property_account_expense_id' if is_supplier else 'property_account_income_id'
+        if product.get(field):
+            return product[field][0]
+            
+        categ_id = product.get('categ_id')
+        if categ_id:
+            categ_field = 'property_account_expense_categ_id' if is_supplier else 'property_account_income_categ_id'
+            categ = self.read('product.category', [categ_id[0]], [categ_field])
+            if categ and categ[0].get(categ_field):
+                return categ[0][categ_field][0]
+                
+        if journal_id:
+            journal = self.read('account.journal', [journal_id], ['default_account_id'])
+            if journal and journal[0].get('default_account_id'):
+                return journal[0]['default_account_id'][0]
+        return None
+
+    def get_partner_account(self, partner_id: int, is_supplier: bool) -> Optional[int]:
+        """Obtiene la cuenta por cobrar o por pagar de un partner."""
+        field = 'property_account_payable_id' if is_supplier else 'property_account_receivable_id'
+        partner = self.read('res.partner', [partner_id], [field])
+        if partner and partner[0].get(field):
+            return partner[0][field][0]
+        return None
 
 
 def create_client_from_connection(connection) -> OdooClient:

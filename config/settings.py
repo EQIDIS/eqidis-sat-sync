@@ -85,6 +85,7 @@ INSTALLED_APPS = [
     'apps.fiscal',
     'storages', # AWS S3
     'django_celery_results', # Celery task results
+    'django_celery_beat',    # Database-backed periodic tasks
 ]
 
 # =============================================================================
@@ -288,4 +289,5 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'America/Mexico_City'
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes max per task
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 

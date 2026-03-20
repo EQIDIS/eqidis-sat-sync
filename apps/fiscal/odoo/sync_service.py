@@ -412,10 +412,6 @@ class OdooInvoiceSyncService:
             sync_log.completed_at = timezone.now()
             sync_log.save()
 
-            # Actualizar last_sync en connection
-            self.connection.last_sync = timezone.now()
-            self.connection.save()
-
             logger.info(
                 f"CFDI {cfdi_uuid} sincronizado: invoice={invoice_id}, "
                 f"attachment={attachment_id}, edi_doc={doc_id}"

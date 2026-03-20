@@ -23,13 +23,12 @@
                 </div>
             </div>
         </div>
-        <!-- Actions (same line) -->
         <div class="flex-none flex items-center gap-2">
             {% if has_odoo_connection %}
             <button
                 hx-get="{% url 'fiscal:master_panel_odoo_compare' company_id %}"
                 hx-target="#odoo-compare-result"
-                hx-swap="innerHTML"
+                hx-swap="innerHTML transition:true"
                 hx-indicator="#compare-loading"
                 class="inline-flex items-center justify-center gap-2 rounded-xl px-4 h-10 font-semibold whitespace-nowrap border border-base-300 bg-base-100 hover:bg-base-200 transition-colors"
             >
@@ -39,10 +38,15 @@
                 Verificar contra Odoo
                 <span id="compare-loading" class="loading loading-spinner loading-xs htmx-indicator"></span>
             </button>
-            <form method="post" action="{% url 'fiscal:master_panel_odoo_sync_all' %}">
+            <form method="post" action="{% url 'fiscal:master_panel_odoo_sync_all' %}"
+                  hx-post="{% url 'fiscal:master_panel_odoo_sync_all' %}"
+                  hx-swap="none"
+                  hx-on::after-request="htmx.trigger('#sync-progress', 'load')"
+                  id="sync-form">
                 {% csrf_token %}
                 <input type="hidden" name="company_id" value="{{ company_id }}">
                 <button type="submit"
+                    onclick="startSyncPolling()"
                     class="inline-flex items-center justify-center gap-2 rounded-xl px-4 h-10 font-semibold whitespace-nowrap bg-[color:var(--eq-primary)] text-[color:var(--eq-primary-content)] hover:opacity-90 transition-opacity border border-[color:var(--eq-primary)]">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
@@ -57,32 +61,44 @@
     <div class="container mx-auto px-4 py-6 max-w-7xl">
 
         <!-- Stats Row -->
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-            <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 w-full">
-                <div class="stat bg-base-100 shadow-sm rounded-2xl border border-base-300 py-3 px-4">
-                    <div class="stat-title text-xs">Total Descargados</div>
-                    <div class="stat-value text-2xl font-bold text-[color:var(--eq-primary)]">{{ total_cfdis }}</div>
-                </div>
-                <div class="stat bg-base-100 shadow-sm rounded-2xl border border-base-300 py-3 px-4">
-                    <div class="stat-title text-xs">Exportables (I+E)</div>
-                    <div class="stat-value text-2xl font-bold">{{ total_exportable }}</div>
-                    <div class="stat-desc text-xs">Sin Nómina/Pago</div>
-                </div>
-                <div class="stat bg-base-100 shadow-sm rounded-2xl border border-[color:var(--eq-primary)]/30 py-3 px-4">
-                    <div class="stat-title text-xs">Creados en Odoo</div>
-                    <div class="stat-value text-2xl font-bold text-[color:var(--eq-primary)]">{{ total_creados }}</div>
-                    <div class="stat-desc text-xs">Según registro local</div>
-                </div>
-                <div class="stat bg-base-100 shadow-sm rounded-2xl border border-base-300 py-3 px-4">
-                    <div class="stat-title text-xs">Nómina</div>
-                    <div class="stat-value text-2xl font-bold text-base-content/40">{{ total_nomina }}</div>
-                </div>
-                <div class="stat bg-base-100 shadow-sm rounded-2xl border border-base-300 py-3 px-4">
-                    <div class="stat-title text-xs">Pago</div>
-                    <div class="stat-value text-2xl font-bold text-base-content/40">{{ total_pago }}</div>
-                </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+            <div class="stat bg-base-100 shadow-sm rounded-2xl border border-base-300 py-3 px-4">
+                <div class="stat-title text-xs">Total Descargados</div>
+                <div class="stat-value text-2xl font-bold text-[color:var(--eq-primary)]">{{ total_cfdis }}</div>
+            </div>
+            <div class="stat bg-base-100 shadow-sm rounded-2xl border border-base-300 py-3 px-4">
+                <div class="stat-title text-xs">Exportables (I+E)</div>
+                <div class="stat-value text-2xl font-bold">{{ total_exportable }}</div>
+            </div>
+            <div class="stat bg-base-100 shadow-sm rounded-2xl border border-[color:var(--eq-primary)]/30 py-3 px-4">
+                <div class="stat-title text-xs">Creados en Odoo</div>
+                <div class="stat-value text-2xl font-bold text-[color:var(--eq-primary)]">{{ total_creados }}</div>
+            </div>
+            {% if total_errors > 0 %}
+            <div class="stat bg-base-100 shadow-sm rounded-2xl border border-[color:var(--eq-secondary)]/30 py-3 px-4 animate-pulse">
+                <div class="stat-title text-xs">Con Error</div>
+                <div class="stat-value text-2xl font-bold text-[color:var(--eq-secondary)]">{{ total_errors }}</div>
+            </div>
+            {% endif %}
+            <div class="stat bg-base-100 shadow-sm rounded-2xl border border-base-300 py-3 px-4">
+                <div class="stat-title text-xs">Nómina</div>
+                <div class="stat-value text-2xl font-bold text-base-content/40">{{ total_nomina }}</div>
+            </div>
+            <div class="stat bg-base-100 shadow-sm rounded-2xl border border-base-300 py-3 px-4">
+                <div class="stat-title text-xs">Pago</div>
+                <div class="stat-value text-2xl font-bold text-base-content/40">{{ total_pago }}</div>
             </div>
         </div>
+
+        <!-- Sync Progress (Lazy Polling Container) -->
+        {% if has_odoo_connection %}
+        <div id="sync-progress"
+             hx-get="{% url 'fiscal:master_panel_sync_progress' company_id %}"
+             hx-trigger="load"
+             hx-swap="outerHTML transition:true">
+             <!-- Mounting point for the view's card -->
+        </div>
+        {% endif %}
 
         <!-- Odoo Compare Result (lazy) -->
         <div id="odoo-compare-result" class="mb-4"></div>
@@ -93,6 +109,7 @@
                 <table class="table table-zebra w-full text-sm">
                     <thead class="bg-base-200/70 text-base-content">
                         <tr>
+                            <th class="w-8"></th>
                             <th>Folio/Serie</th>
                             <th>Emisor / Receptor</th>
                             <th>UUID</th>
@@ -104,7 +121,12 @@
                     </thead>
                     <tbody>
                         {% for cfdi in page_obj %}
-                        <tr class="hover">
+                        <tr class="hover cursor-pointer group" onclick="toggleRow('detail-{{ cfdi.uuid }}')">
+                            <td class="w-8 text-center">
+                                <svg id="chevron-{{ cfdi.uuid }}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5 text-base-content/30 transition-transform duration-200 inline-block group-hover:text-primary">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                                </svg>
+                            </td>
                             <td>
                                 <div class="font-semibold">{{ cfdi.serie|default:"" }} {{ cfdi.folio|default:"—" }}</div>
                                 <div class="text-xs text-base-content/50">{{ cfdi.fecha_emision|date:"d/m/Y H:i" }}</div>
@@ -141,48 +163,132 @@
                             </td>
                             <td class="text-center">
                                 {% if cfdi.tipo_cfdi == 'I' %}
-                                <div class="inline-flex items-center px-2.5 py-0.5 rounded-full border border-[color:var(--eq-primary)]/30 bg-[color:var(--eq-primary)]/10 text-[color:var(--eq-primary)] text-xs font-semibold">
-                                    Ingreso
-                                </div>
+                                <div class="inline-flex items-center px-2.5 py-0.5 rounded-full border border-[color:var(--eq-primary)]/30 bg-[color:var(--eq-primary)]/10 text-[color:var(--eq-primary)] text-xs font-semibold">Ingreso</div>
                                 {% elif cfdi.tipo_cfdi == 'E' %}
-                                <div class="inline-flex items-center px-2.5 py-0.5 rounded-full border border-[color:var(--eq-secondary)]/30 bg-[color:var(--eq-secondary)]/10 text-[color:var(--eq-secondary)] text-xs font-semibold">
-                                    Egreso
-                                </div>
+                                <div class="inline-flex items-center px-2.5 py-0.5 rounded-full border border-[color:var(--eq-secondary)]/30 bg-[color:var(--eq-secondary)]/10 text-[color:var(--eq-secondary)] text-xs font-semibold">Egreso</div>
                                 {% elif cfdi.tipo_cfdi == 'N' %}
-                                <div class="inline-flex items-center px-2.5 py-0.5 rounded-full border border-base-300 bg-base-200 text-base-content/40 text-xs font-semibold">
-                                    Nómina
-                                </div>
+                                <div class="inline-flex items-center px-2.5 py-0.5 rounded-full border border-base-300 bg-base-200 text-base-content/40 text-xs font-semibold">Nómina</div>
                                 {% elif cfdi.tipo_cfdi == 'P' %}
-                                <div class="inline-flex items-center px-2.5 py-0.5 rounded-full border border-base-300 bg-base-200 text-base-content/40 text-xs font-semibold">
-                                    Pago
-                                </div>
+                                <div class="inline-flex items-center px-2.5 py-0.5 rounded-full border border-base-300 bg-base-200 text-base-content/40 text-xs font-semibold">Pago</div>
                                 {% else %}
-                                <div class="inline-flex items-center px-2.5 py-0.5 rounded-full border border-base-300 bg-base-200 text-base-content/50 text-xs font-semibold">
-                                    {{ cfdi.tipo_cfdi }}
-                                </div>
+                                <div class="inline-flex items-center px-2.5 py-0.5 rounded-full border border-base-300 bg-base-200 text-base-content/50 text-xs font-semibold">{{ cfdi.tipo_cfdi }}</div>
                                 {% endif %}
                             </td>
-                            <td class="text-center">
+                            <td class="text-center" id="odoo-cell-{{ cfdi.uuid }}">
                                 {% if cfdi.tipo_cfdi == 'N' or cfdi.tipo_cfdi == 'P' %}
-                                <div class="inline-flex items-center px-2 py-0.5 rounded-full border border-base-300 bg-base-200 text-base-content/30 text-xs font-semibold">
-                                    N/A
-                                </div>
-                                {% elif cfdi.creado_en_sistema %}
-                                <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-[color:var(--eq-primary)]/30 bg-[color:var(--eq-primary)]/10 text-[color:var(--eq-primary)] text-xs font-semibold">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
-                                    Sí
-                                </div>
+                                    <div class="inline-flex items-center px-2 py-0.5 rounded-full border border-base-300 bg-base-200 text-base-content/30 text-xs font-semibold">N/A</div>
+                                {% elif cfdi.sync_status == 'success' or cfdi.creado_en_sistema %}
+                                    <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-[color:var(--eq-primary)]/30 bg-[color:var(--eq-primary)]/10 text-[color:var(--eq-primary)] text-xs font-semibold">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                                        Sí
+                                    </div>
+                                {% elif cfdi.sync_status == 'error' %}
+                                    <div class="flex flex-col items-center gap-1">
+                                        <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-[color:var(--eq-secondary)]/30 bg-[color:var(--eq-secondary)]/10 text-[color:var(--eq-secondary)] text-xs font-semibold">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+                                            Error
+                                        </div>
+                                        {% if has_odoo_connection %}
+                                        <button onclick="event.stopPropagation()"
+                                            hx-post="{% url 'fiscal:master_panel_retry_cfdi' company_id cfdi.uuid %}"
+                                            hx-target="#odoo-cell-{{ cfdi.uuid }}"
+                                            hx-swap="innerHTML transition:true"
+                                            hx-indicator="#retry-{{ cfdi.uuid }}"
+                                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border border-base-300 bg-base-100 hover:bg-base-200 text-xs font-medium transition-colors">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" /></svg>
+                                            Reintentar
+                                            <span id="retry-{{ cfdi.uuid }}" class="loading loading-spinner loading-xs htmx-indicator"></span>
+                                        </button>
+                                        {% endif %}
+                                    </div>
                                 {% else %}
-                                <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-[color:var(--eq-secondary)]/30 bg-[color:var(--eq-secondary)]/10 text-[color:var(--eq-secondary)] text-xs font-semibold">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                    No
-                                </div>
+                                    <div class="flex flex-col items-center gap-1">
+                                        <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-base-300 bg-base-200 text-base-content/50 text-xs font-semibold">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            Pendiente
+                                        </div>
+                                        {% if has_odoo_connection %}
+                                        <button onclick="event.stopPropagation()"
+                                            hx-post="{% url 'fiscal:master_panel_retry_cfdi' company_id cfdi.uuid %}"
+                                            hx-target="#odoo-cell-{{ cfdi.uuid }}"
+                                            hx-swap="innerHTML transition:true"
+                                            hx-indicator="#retry-p-{{ cfdi.uuid }}"
+                                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border border-base-300 bg-base-100 hover:bg-base-200 text-xs font-medium transition-colors">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
+                                            Crear
+                                            <span id="retry-p-{{ cfdi.uuid }}" class="loading loading-spinner loading-xs htmx-indicator"></span>
+                                        </button>
+                                        {% endif %}
+                                    </div>
                                 {% endif %}
+                            </td>
+                        </tr>
+                        <!-- Detail Row (collapsed by default) -->
+                        <tr id="detail-{{ cfdi.uuid }}" class="hidden">
+                            <td colspan="8" class="bg-base-200/50 px-6 py-4">
+                                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 text-sm">
+                                    <div class="flex flex-col gap-1">
+                                        <span class="text-base-content/50 text-xs font-bold uppercase tracking-wider">Detalles de Pago</span>
+                                        <div class="font-medium text-base-content/80">
+                                            <span class="badge badge-sm badge-outline border-base-300">{{ cfdi.moneda|default:"MXN" }}</span>
+                                            <span class="mx-1">·</span>
+                                            {{ cfdi.metodo_pago|default:"N/A" }}
+                                            <div class="text-xs text-base-content/40 mt-1">{{ cfdi.forma_pago|default:"N/A" }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-col gap-1 md:col-span-1">
+                                        <span class="text-base-content/50 text-xs font-bold uppercase tracking-wider">RFCs</span>
+                                        <div class="font-mono text-xs flex flex-col gap-0.5">
+                                            <div class="flex items-center gap-2"><span class="w-4 text-primary font-bold">E:</span> {{ cfdi.rfc_emisor|default:"N/A" }}</div>
+                                            <div class="flex items-center gap-2"><span class="w-4 text-secondary font-bold">R:</span> {{ cfdi.rfc_receptor|default:"N/A" }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-col gap-1">
+                                        <span class="text-base-content/50 text-xs font-bold uppercase tracking-wider">Estado en Odoo</span>
+                                        <div class="flex flex-col gap-1">
+                                            {% if cfdi.sync_status %}
+                                            <div class="font-bold flex items-center gap-2">
+                                                <span class="capitalize">{{ cfdi.sync_status }}</span>
+                                                {% if cfdi.odoo_id %}
+                                                <span class="badge badge-primary badge-sm">ID: #{{ cfdi.odoo_id }}</span>
+                                                {% endif %}
+                                            </div>
+                                            {% else %}
+                                            <div class="text-base-content/40 italic">Sin intentos de sincronización local</div>
+                                            {% endif %}
+                                            {% if cfdi.creado_en_sistema and not cfdi.sync_status %}
+                                            <div class="text-primary text-xs font-semibold flex items-center gap-1">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                Marcado como creado
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-col gap-1">
+                                        <span class="text-base-content/50 text-xs font-bold uppercase tracking-wider">Acciones</span>
+                                        <div class="flex gap-2 mt-1">
+                                            <button class="btn btn-xs btn-outline border-base-300 hover:bg-base-200" title="Ver XML">XML</button>
+                                            <button class="btn btn-xs btn-outline border-base-300 hover:bg-base-200" title="Ver PDF">PDF</button>
+                                        </div>
+                                    </div>
+                                    
+                                    {% if cfdi.sync_error %}
+                                    <div class="md:col-span-4 mt-2">
+                                        <div class="flex items-center gap-2 mb-2">
+                                            <div class="h-2 w-2 rounded-full bg-[color:var(--eq-secondary)] animate-pulse"></div>
+                                            <span class="text-[color:var(--eq-secondary)] text-xs font-bold uppercase tracking-wider">Error de sincronización detallado:</span>
+                                        </div>
+                                        <div class="p-3 rounded-xl bg-[color:var(--eq-secondary)]/5 border border-[color:var(--eq-secondary)]/20 text-xs font-mono text-[color:var(--eq-secondary)] whitespace-pre-wrap max-h-48 overflow-y-auto shadow-inner">
+                                            {{ cfdi.sync_error }}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
                             </td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="7" class="text-center py-10 text-base-content/50">
+                            <td colspan="8" class="text-center py-10 text-base-content/50">
                                 <div class="mx-auto max-w-md rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
                                     <div class="text-base font-semibold">Sin facturas</div>
                                     <div class="text-sm mt-1">No se encontraron CFDIs para esta empresa.</div>
@@ -226,4 +332,85 @@
         </div>
     </div>
 </div>
+
+<style>
+/* Smooth HTMX Transitions */
+.htmx-adding { opacity: 0; }
+.htmx-settling { opacity: 1; transition: opacity 0.3s ease-in; }
+
+#sync-progress {
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.table tr {
+    transition: all 0.2s ease;
+}
+
+/* Row Highlight when active */
+.row-active {
+    background-color: color-mix(in srgb, var(--eq-primary) 8%, transparent) !important;
+    border-left: 4px solid var(--eq-primary) !important;
+    position: relative;
+    z-index: 10;
+}
+
+/* Detail Box Glass Effect */
+.detail-box {
+    background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
+    backdrop-filter: blur(4px);
+}
+</style>
+
+<script>
+function toggleRow(id) {
+    const row = document.getElementById(id);
+    const uuid = id.replace('detail-', '');
+    const chevron = document.getElementById('chevron-' + uuid);
+    const parentRow = row.previousElementSibling;
+    
+    // Close all other detail rows
+    const allDetails = document.querySelectorAll('tr[id^="detail-"]');
+    allDetails.forEach(detail => {
+        if (detail.id !== id && !detail.classList.contains('hidden')) {
+            detail.classList.add('hidden');
+            // Reset chevron of the other row
+            const otherUuid = detail.id.replace('detail-', '');
+            const otherChevron = document.getElementById('chevron-' + otherUuid);
+            if (otherChevron) otherChevron.style.transform = '';
+            // Reset background of the other parent row
+            detail.previousElementSibling.classList.remove('row-active');
+        }
+    });
+
+    if (row) {
+        const isHidden = row.classList.contains('hidden');
+        row.classList.toggle('hidden');
+        
+        if (chevron) {
+            chevron.style.transform = isHidden ? 'rotate(90deg)' : '';
+        }
+
+        if (isHidden) {
+            parentRow.classList.add('row-active');
+            // Smooth scroll into view if needed
+            // parentRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+            parentRow.classList.remove('row-active');
+        }
+    }
+}
+
+function startSyncPolling() {
+    const progress = document.getElementById('sync-progress');
+    if (progress && typeof htmx !== 'undefined') {
+        const statusEl = progress.querySelector('.text-base-content\\/30');
+        if (statusEl) {
+            statusEl.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Iniciando...';
+        }
+        setTimeout(() => {
+            htmx.trigger(progress, 'load');
+        }, 800);
+    }
+}
+</script>
 {% endblock %}

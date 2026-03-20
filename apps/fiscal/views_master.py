@@ -624,14 +624,14 @@ class MasterPanelDescargasEliminarView(View):
 class MasterPanelDescargaCfdisView(TemplateView):
     """
     Muestra la tabla de TODOS los CFDIs obtenidos para una Empresa específica.
-    La comparación con Odoo se carga bajo demanda con HTMX.
+    Enriquece cada CFDI con su último estado de sincronización desde OdooSyncLog.
     """
     template_name = 'fiscal/master_panel_descargas_cfdis.html'
     
     def get_context_data(self, **kwargs):
         from apps.companies.models import Empresa
         from .models import CfdiDocument
-        from apps.integrations.odoo.models import OdooConnection
+        from apps.integrations.odoo.models import OdooConnection, OdooSyncLog
         from django.shortcuts import get_object_or_404
         from django.core.paginator import Paginator
         context = super().get_context_data(**kwargs)
@@ -644,22 +644,55 @@ class MasterPanelDescargaCfdisView(TemplateView):
             company=empresa
         ).select_related('company', 'current_state_check').order_by('-fecha_emision')
         
-        # Stats locales (rápidos, sin llamadas a Odoo)
+        # Stats locales
         total = cfdis_qs.count()
         total_nomina = cfdis_qs.filter(tipo_cfdi='N').count()
         total_pago = cfdis_qs.filter(tipo_cfdi='P').count()
         total_exportable = total - total_nomina - total_pago
         total_creados = cfdis_qs.filter(creado_en_sistema=True).exclude(tipo_cfdi__in=['N', 'P']).count()
         
+        # Conexión Odoo
+        connection = OdooConnection.objects.filter(
+            empresa=empresa, status='active'
+        ).first()
+        
+        # Enriquecer con logs de sync (último log por UUID)
+        sync_log_map = {}  # uuid_str -> {status, error_message, odoo_invoice_id}
+        total_errors = 0
+        if connection:
+            from django.db.models import Max
+            # Obtener el último log por cada UUID
+            latest_logs = OdooSyncLog.objects.filter(
+                connection=connection,
+                direction='to_odoo'
+            ).values('cfdi_uuid').annotate(last_id=Max('id'))
+            
+            latest_ids = [entry['last_id'] for entry in latest_logs]
+            logs = OdooSyncLog.objects.filter(id__in=latest_ids).values(
+                'cfdi_uuid', 'status', 'error_message', 'odoo_invoice_id'
+            )
+            for log in logs:
+                uuid_str = str(log['cfdi_uuid']).lower()
+                sync_log_map[uuid_str] = {
+                    'status': log['status'],
+                    'error': log['error_message'] or '',
+                    'odoo_id': log['odoo_invoice_id'],
+                }
+                if log['status'] == 'error':
+                    total_errors += 1
+        
         # Paginación
         page = self.request.GET.get('page', 1)
         paginator = Paginator(cfdis_qs, 100)
         page_obj = paginator.get_page(page)
         
-        # Conexión Odoo
-        connection = OdooConnection.objects.filter(
-            empresa=empresa, status='active'
-        ).first()
+        # Enriquecer los CFDIs de la página actual
+        for cfdi in page_obj:
+            uuid_str = str(cfdi.uuid).lower()
+            log_info = sync_log_map.get(uuid_str, {})
+            cfdi.sync_status = log_info.get('status', '')
+            cfdi.sync_error = log_info.get('error', '')
+            cfdi.odoo_id = log_info.get('odoo_id')
         
         context['empresa'] = empresa
         context['solicitud'] = None
@@ -669,9 +702,200 @@ class MasterPanelDescargaCfdisView(TemplateView):
         context['total_pago'] = total_pago
         context['total_exportable'] = total_exportable
         context['total_creados'] = total_creados
+        context['total_errors'] = total_errors
         context['has_odoo_connection'] = bool(connection)
         context['company_id'] = company_id
         return context
+
+
+@method_decorator(user_passes_test(is_admin), name='dispatch')
+class MasterPanelSyncProgressView(View):
+    """
+    Endpoint HTMX: Retorna el progreso actual de sincronización vía polling.
+    """
+    def get(self, request, company_id, *args, **kwargs):
+        from apps.integrations.odoo.models import OdooConnection, OdooSyncLog
+        from .models import CfdiDocument
+        from django.db.models import Count
+        
+        connection = OdooConnection.objects.filter(
+            empresa_id=company_id, status='active'
+        ).first()
+        
+        if not connection:
+            return HttpResponse('')
+        
+        # Contar estados de sync
+        total_exportable = CfdiDocument.objects.filter(
+            company_id=company_id
+        ).exclude(tipo_cfdi__in=['N', 'P']).count()
+        
+        # Filtrar logs SOLO del sync actual (desde el último clic en Exportar)
+        sync_start = connection.last_sync
+        
+        stats = OdooSyncLog.objects.filter(
+            connection=connection, 
+            direction='to_odoo'
+        )
+        if sync_start:
+            stats = stats.filter(created_at__gte=sync_start)
+            
+        stats = stats.values('status').annotate(total=Count('id'))
+        
+        counts = {s['status']: s['total'] for s in stats}
+        success = counts.get('success', 0)
+        errors = counts.get('error', 0)
+        skipped = counts.get('skipped', 0)
+        pending = counts.get('pending', 0)
+        processed = success + errors + skipped
+        
+        # Determinar si debe seguir haciendo polling
+        # Si hay tareas 'pending', definitivamente está corriendo.
+        # Si no hay 'pending', pero hubo actividad RECIENTE (menos de 60 segundos), seguimos haciendo polling.
+        # Si han pasado más de 60s sin actividad y no hay pendientes, lo damos por terminado.
+        last_log = OdooSyncLog.objects.filter(connection=connection, direction='to_odoo').order_by('-id').first()
+        from django.utils import timezone
+        import datetime
+        
+        has_recent_activity = False
+        if last_log:
+            activity_delta = (timezone.now() - last_log.created_at).total_seconds()
+            has_recent_activity = activity_delta < 60  # Actividad en el último minuto
+            
+        is_running = pending > 0 or (has_recent_activity and processed < total_exportable and processed > 0)
+        
+        if total_exportable == 0:
+            pct = 100
+        else:
+            pct = min(100, int((success / total_exportable) * 100))
+
+        # Ajustar intervalo y método de swap para evitar contenedores dobles
+        poll_interval = "every 5s" if is_running else "every 30s"
+        poll_attr = f'hx-get="{request.path}" hx-trigger="{poll_interval}" hx-swap="outerHTML transition:true"'
+        
+        # Corregir zona horaria para el display
+        local_sync_time = timezone.localtime(connection.last_sync) if connection.last_sync else None
+        time_str = local_sync_time.strftime("%H:%M") if local_sync_time else ""
+        
+        # Color y estado del indicador con mejores labels
+        if is_running:
+            status_text = "Sincronizando..."
+            status_html = f'<div class="inline-flex items-center gap-1.5 text-xs text-[color:var(--eq-primary)] font-bold"><span class="loading loading-spinner loading-xs"></span>{status_text}</div>'
+            bar_color = 'bg-[color:var(--eq-primary)]' if errors == 0 else 'bg-[color:var(--eq-secondary)]'
+        elif processed > 0:
+            status_text = "Sincronización completada"
+            status_html = f'<div class="text-xs font-bold text-[color:var(--eq-primary)]">✓ {status_text}</div>'
+            bar_color = 'bg-[color:var(--eq-primary)]' if errors == 0 else 'bg-[color:var(--eq-secondary)]'
+        else:
+            status_text = "Sincronización lista"
+            status_html = f'<div class="text-xs font-medium text-base-content/30 italic">{status_text}</div>'
+            bar_color = 'bg-base-200'
+            pct = 0
+
+        error_detail = ''
+        if errors > 0:
+            error_detail = f'<span class="text-[color:var(--eq-secondary)] font-bold">{errors} errores</span>'
+        
+        html = f'''
+        <div id="sync-progress" class="mb-4 rounded-2xl border border-base-300 bg-base-100 p-4 shadow-sm transition-all duration-500" {poll_attr}>
+            <div class="flex items-center justify-between mb-2">
+                <div class="text-sm font-semibold flex items-center gap-2">
+                    Progreso de Sincronización
+                    {f'<span class="badge badge-xs badge-ghost font-normal text-[10px]">{time_str}</span>' if time_str else ''}
+                </div>
+                <div class="text-xs text-base-content/50">
+                    {success} creados · {skipped} omitidos · {error_detail if errors > 0 else f'{errors} errores'}
+                </div>
+            </div>
+            <div class="w-full bg-base-200 rounded-full h-2.5 overflow-hidden">
+                <div class="h-full rounded-full transition-all duration-1000 {bar_color}"
+                     style="width: {pct}%"></div>
+            </div>
+            <div class="flex items-center justify-between mt-2">
+                <div class="text-xs text-base-content/40">
+                    {f'{success}/{total_exportable} exportables' if total_exportable > 0 else 'Sin exportables pendientes'}
+                </div>
+                {status_html}
+            </div>
+        </div>
+        '''
+        return HttpResponse(html)
+
+
+@method_decorator(user_passes_test(is_admin), name='dispatch')
+class MasterPanelRetryCfdiView(View):
+    """
+    Endpoint HTMX: Reintenta la sincronización de UN solo CFDI hacia Odoo.
+    """
+    def post(self, request, company_id, cfdi_uuid, *args, **kwargs):
+        from .models import CfdiDocument
+        from apps.integrations.odoo.models import OdooConnection
+        from apps.fiscal.odoo.sync_service import OdooInvoiceSyncService
+        from django.core.files.storage import default_storage
+        
+        connection = OdooConnection.objects.filter(
+            empresa_id=company_id, status='active'
+        ).first()
+        
+        if not connection:
+            return HttpResponse(
+                '<div class="inline-flex items-center px-2 py-0.5 rounded-full border border-[color:var(--eq-secondary)]/30 bg-[color:var(--eq-secondary)]/10 text-[color:var(--eq-secondary)] text-xs font-semibold">Sin conexión</div>'
+            )
+        
+        try:
+            cfdi = CfdiDocument.objects.get(company_id=company_id, uuid=cfdi_uuid)
+        except CfdiDocument.DoesNotExist:
+            return HttpResponse(
+                '<div class="inline-flex items-center px-2 py-0.5 rounded-full border border-[color:var(--eq-secondary)]/30 bg-[color:var(--eq-secondary)]/10 text-[color:var(--eq-secondary)] text-xs font-semibold">No encontrado</div>'
+            )
+        
+        # Leer XML
+        xml_content = None
+        if cfdi.s3_xml_path:
+            try:
+                with default_storage.open(cfdi.s3_xml_path, 'rb') as f:
+                    xml_content = f.read().decode('utf-8')
+            except Exception:
+                pass
+        
+        # Sincronizar
+        service = OdooInvoiceSyncService(connection)
+        try:
+            result = service.sync_cfdi_to_odoo(str(cfdi.uuid), xml_content)
+            status = result.get('status', 'error')
+            
+            if status == 'created':
+                cfdi.creado_en_sistema = True
+                cfdi.save(update_fields=['creado_en_sistema'])
+                return HttpResponse(
+                    '<div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-[color:var(--eq-primary)]/30 bg-[color:var(--eq-primary)]/10 text-[color:var(--eq-primary)] text-xs font-semibold">'
+                    '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>'
+                    '¡Creado!</div>'
+                )
+            elif status == 'exists':
+                cfdi.creado_en_sistema = True
+                cfdi.save(update_fields=['creado_en_sistema'])
+                return HttpResponse(
+                    '<div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-[color:var(--eq-primary)]/30 bg-[color:var(--eq-primary)]/10 text-[color:var(--eq-primary)] text-xs font-semibold">'
+                    '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>'
+                    'Ya existe</div>'
+                )
+            else:
+                msg = result.get('message', 'Error desconocido')[:80]
+                return HttpResponse(
+                    f'<div class="flex flex-col gap-1">'
+                    f'<div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-[color:var(--eq-secondary)]/30 bg-[color:var(--eq-secondary)]/10 text-[color:var(--eq-secondary)] text-xs font-semibold">Error</div>'
+                    f'<div class="text-xs text-[color:var(--eq-secondary)] max-w-48 truncate" title="{msg}">{msg}</div>'
+                    f'</div>'
+                )
+        except Exception as e:
+            msg = str(e)[:80]
+            return HttpResponse(
+                f'<div class="flex flex-col gap-1">'
+                f'<div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-[color:var(--eq-secondary)]/30 bg-[color:var(--eq-secondary)]/10 text-[color:var(--eq-secondary)] text-xs font-semibold">Error</div>'
+                f'<div class="text-xs text-[color:var(--eq-secondary)] max-w-48 truncate" title="{msg}">{msg}</div>'
+                f'</div>'
+            )
 
 
 @method_decorator(user_passes_test(is_admin), name='dispatch')
@@ -796,15 +1020,17 @@ class MasterPanelOdooSyncAllView(View):
                 return redirect('fiscal:master_panel_descargas')
             return redirect('fiscal:master_panel_descargas')
         
-        # Resetear estados para forzar reprocesamiento
-        active_company_ids = active_connections.values_list('empresa_id', flat=True)
-        CfdiDocument.objects.filter(
-            company_id__in=active_company_ids
-        ).exclude(tipo_cfdi='P').update(creado_en_sistema=False)
-        
         count = 0
         for conn in active_connections:
-            sync_new_cfdis_to_odoo.delay(conn.empresa_id, force_sync=True)
+            # Resetear estado y fecha de inicio para el progreso
+            CfdiDocument.objects.filter(
+                company_id=conn.empresa_id
+            ).exclude(tipo_cfdi='P').update(creado_en_sistema=False)
+            
+            conn.last_sync = timezone.now()
+            conn.save(update_fields=['last_sync'])
+            
+            sync_new_cfdis_to_odoo.delay(empresa_id=conn.empresa_id, force_sync=True)
             count += 1
             
         empresa_label = f"empresa {company_id}" if company_id else f"{count} empresas"

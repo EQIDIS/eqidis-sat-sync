@@ -13,6 +13,7 @@ from django.http import JsonResponse
 from apps.fiscal.odoo.client import OdooClient, OdooClientError
 from apps.integrations.odoo.models import OdooConnection, OdooSyncLog
 from apps.fiscal.models import CfdiCertificate, EmpresaSyncSettings
+from apps.companies.models import Empresa
 from apps.core.encryption import ModelEncryption
 from django.utils import timezone
 from django.http import HttpResponse

@@ -326,24 +326,32 @@ def procesar_paquete_xml(package_id):
         package.save()
         
         # Actualizar solicitud padre si todos los paquetes están completos
+        # Usar select_for_update para evitar race condition cuando múltiples
+        # paquetes terminan simultáneamente
+        from django.db import transaction
         request = package.request
-        all_completed = not request.packages.exclude(status='completed').exists()
-        if all_completed:
-            request.status = 'downloaded'
-            request.completed_at = timezone.now()
-            request.save()
-            
-            # Sincronizar a Odoo automáticamente si está habilitado
-            try:
-                from apps.fiscal.models import EmpresaSyncSettings
-                sync_settings = EmpresaSyncSettings.objects.filter(company=empresa).first()
-                if sync_settings and sync_settings.sync_to_odoo_enabled:
-                    from apps.fiscal.odoo.tasks import sync_new_cfdis_to_odoo
-                    # Ejecutar inmediatamente (sin delay)
-                    logger.info(f"Disparando sincronización a Odoo para empresa {empresa.id}")
-                    sync_new_cfdis_to_odoo.delay(empresa.id)
-            except Exception as e:
-                logger.warning(f"Error al disparar sync Odoo: {e}")
+        with transaction.atomic():
+            locked_request = type(request).objects.select_for_update().get(pk=request.pk)
+            if locked_request.status == 'downloaded':
+                # Otro paquete ya marcó la solicitud como completada
+                logger.info(f"Solicitud {request.pk} ya fue marcada como completada por otro paquete")
+            else:
+                all_completed = not locked_request.packages.exclude(status='completed').exists()
+                if all_completed:
+                    locked_request.status = 'downloaded'
+                    locked_request.completed_at = timezone.now()
+                    locked_request.save()
+
+                    # Sincronizar a Odoo automáticamente si está habilitado
+                    try:
+                        from apps.fiscal.models import EmpresaSyncSettings
+                        sync_settings = EmpresaSyncSettings.objects.filter(company=empresa).first()
+                        if sync_settings and sync_settings.sync_to_odoo_enabled:
+                            from apps.fiscal.odoo.tasks import sync_new_cfdis_to_odoo
+                            logger.info(f"Disparando sincronización a Odoo para empresa {empresa.id}")
+                            sync_new_cfdis_to_odoo.delay(empresa.id)
+                    except Exception as e:
+                        logger.warning(f"Error al disparar sync Odoo: {e}")
         
         logger.info(f"Paquete {package_id} procesado: {processed} CFDIs ({created} nuevos, {errors} errores)")
         

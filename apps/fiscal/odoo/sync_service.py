@@ -96,6 +96,7 @@ class CfdiLineItem:
     valor_unitario: Decimal
     importe: Decimal
     descuento: Decimal = Decimal('0')
+    no_identificacion: str = ''  # NoIdentificacion del XML (código interno del proveedor)
     # Impuestos
     traslados: list = None  # [{'tipo': 'IVA', 'tasa': 0.16, 'importe': 100}]
     retenciones: list = None
@@ -200,6 +201,7 @@ class CfdiXmlParser:
                 valor_unitario=Decimal(concepto.get('ValorUnitario', '0')),
                 importe=Decimal(concepto.get('Importe', '0')),
                 descuento=Decimal(concepto.get('Descuento', '0')),
+                no_identificacion=concepto.get('NoIdentificacion', ''),
                 traslados=traslados,
                 retenciones=retenciones,
             )
@@ -682,26 +684,76 @@ class OdooInvoiceSyncService:
         logger.info(f"Partner creado: ID={partner_id}, VAT={vat}, customer={is_customer}, supplier={is_supplier}")
         return partner_id
 
-    def _find_or_create_product(self, concepto: CfdiLineItem, company_id: int) -> Optional[int]:
+    def _find_or_create_product(self, concepto: CfdiLineItem, company_id: int,
+                                is_supplier: bool = True) -> Optional[int]:
+        """
+        Busca o crea un producto siguiendo el patrón multi-etapa del módulo IT Admin:
+        1. Buscar por NoIdentificacion (default_code) - código interno del proveedor
+        2. Buscar en product.supplierinfo por product_code
+        3. Buscar por nombre exacto del producto
+        4. Crear producto nuevo si no se encuentra
+
+        IMPORTANTE: NO busca por ClaveProdServ (código SAT genérico) porque es
+        compartido por muchos productos distintos y causa matches incorrectos.
+        """
         client = self._get_client()
-        clave = concepto.clave_prod_serv
-        if not clave:
-            return None
-        
-        domain = [['default_code', '=', clave], '|', ['company_id', '=', company_id], ['company_id', '=', False]]
-        products = client.search_read('product.product', domain, fields=['id'], limit=1)
-        if products:
-            return products[0]['id']
-            
+        company_ids = [company_id, False]
+        no_identificacion = concepto.no_identificacion
+        product_name = concepto.descripcion or concepto.clave_prod_serv or ''
+
+        # Etapa 1: Buscar por default_code = NoIdentificacion (código interno, NO clave SAT)
+        if no_identificacion:
+            products = client.search_read(
+                'product.product',
+                [['default_code', '=', no_identificacion], ['company_id', 'in', company_ids]],
+                fields=['id'], limit=1
+            )
+            if products:
+                return products[0]['id']
+
+            # Etapa 1b: Buscar en product.supplierinfo por product_code
+            try:
+                supplier_infos = client.search_read(
+                    'product.supplierinfo',
+                    [['product_code', '=', no_identificacion], ['company_id', 'in', company_ids]],
+                    fields=['product_tmpl_id'], limit=1
+                )
+                if supplier_infos and supplier_infos[0].get('product_tmpl_id'):
+                    tmpl_id = supplier_infos[0]['product_tmpl_id'][0]
+                    variants = client.search_read(
+                        'product.product',
+                        [['product_tmpl_id', '=', tmpl_id]],
+                        fields=['id'], limit=1
+                    )
+                    if variants:
+                        return variants[0]['id']
+            except Exception:
+                pass
+
+        # Etapa 2: Buscar por nombre exacto del producto
+        if product_name:
+            products = client.search_read(
+                'product.product',
+                [['name', '=', product_name], ['company_id', 'in', company_ids]],
+                fields=['id'], limit=1
+            )
+            if products:
+                return products[0]['id']
+
+        # Etapa 3: Crear producto nuevo
         try:
-            return client.create('product.product', {
-                'name': concepto.descripcion or clave,
-                'default_code': clave,
+            product_vals = {
+                'name': product_name,
                 'type': 'consu',
                 'company_id': company_id,
-            })
+                'sale_ok': not is_supplier,
+                'purchase_ok': is_supplier,
+            }
+            if no_identificacion:
+                product_vals['default_code'] = no_identificacion
+            return client.create('product.product', product_vals)
         except Exception as e:
-            logger.warning(f"Error creando producto genérico {clave}: {e}")
+            logger.warning(f"Error creando producto '{product_name}': {e}")
             return None
 
     def _find_or_create_tax(self, client: 'OdooClient', tasa_pct: float, tax_type: str, 
@@ -771,7 +823,7 @@ class OdooInvoiceSyncService:
         # 1. Procesar Conceptos
         for concepto in cfdi_data.conceptos:
             neto_xml = concepto.importe - concepto.descuento
-            product_id = self._find_or_create_product(concepto, company_id)
+            product_id = self._find_or_create_product(concepto, company_id, is_supplier)
             account_id = client.get_product_account(product_id, is_supplier, journal_id) if product_id else None
             if not account_id and journals and journals[0].get('default_account_id'):
                 account_id = journals[0]['default_account_id'][0]

@@ -268,7 +268,7 @@ class OdooClient:
             taxes = self.search_read(
                 'account.tax',
                 domain,
-                fields=['id', 'name', 'amount'],
+                fields=['id', 'name', 'amount', 'tax_group_id'],
                 limit=1
             )
             if taxes:
@@ -282,7 +282,7 @@ class OdooClient:
             taxes = self.search_read(
                 'account.tax',
                 domain,
-                fields=['id', 'name', 'amount'],
+                fields=['id', 'name', 'amount', 'tax_group_id'],
                 limit=1
             )
             if taxes:
@@ -457,19 +457,25 @@ class OdooClient:
         return attachments[0] if attachments else None
 
     def create_l10n_mx_edi_document(self, invoice_id: int, attachment_id: int,
-                                     state: str = 'invoice_received',
+                                     state: str = 'invoice_sent',
                                      sat_state: str = 'not_defined',
                                      cfdi_datetime: str = None) -> Optional[int]:
-        """Crea un registro l10n_mx_edi.document para vincular el CFDI con la factura."""
+        """Crea un registro l10n_mx_edi.document para vincular el CFDI con la factura.
+
+        Replica el patrón del módulo IT Admin (l10n_mx_sat_sync_itadmin_ee)
+        que usa _create_update_invoice_document_from_invoice() con invoice_ids.
+        """
         from datetime import datetime as dt
         if not cfdi_datetime:
             cfdi_datetime = dt.now().strftime('%Y-%m-%d %H:%M:%S')
         document_vals = {
             'move_id': invoice_id,
+            'invoice_ids': [(6, 0, [invoice_id])],
             'attachment_id': attachment_id,
             'state': state,
             'sat_state': sat_state,
             'datetime': cfdi_datetime,
+            'message': False,
         }
         try:
             doc_id = self.create('l10n_mx_edi.document', document_vals)

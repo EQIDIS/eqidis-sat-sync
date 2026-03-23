@@ -278,21 +278,23 @@ TENANT_EXEMPT_PATHS = [
 ]
 
 # =============================================================================
-# Cache Configuration (Redis - compartido entre workers para locks distribuidos)
-# =============================================================================
-
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': os.environ.get('REDIS_URL', 'redis://localhost:6379/1'),
-    }
-}
-
-# =============================================================================
 # Celery Configuration (Async Tasks)
 # =============================================================================
 
 CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+
+# =============================================================================
+# Cache Configuration (Redis - compartido entre workers para locks distribuidos)
+# Usa el mismo host que Celery para funcionar en Docker (redis://redis:6379)
+# =============================================================================
+
+_redis_broker = CELERY_BROKER_URL.rsplit('/', 1)[0]  # quitar /0 del final
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': os.environ.get('REDIS_URL', f'{_redis_broker}/1'),
+    }
+}
 CELERY_RESULT_BACKEND = 'django-db'  # Uses django-celery-results
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'

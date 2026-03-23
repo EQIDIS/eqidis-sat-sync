@@ -1,63 +1,60 @@
 {% extends 'base.html' %}
 {% load humanize %}
 
+{% block navbar_title %}
+<div class="hidden md:flex items-center gap-3 border-l border-base-300 pl-3">
+    <a href="{% url 'fiscal:master_panel_descargas' %}" hx-boost="false" class="btn btn-sm btn-ghost gap-1 px-2">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+        </svg>
+    </a>
+    <div>
+        <h1 class="font-bold text-sm text-base-content leading-tight">{{ empresa.nombre }}</h1>
+        <p class="text-xs text-base-content/50 font-mono">{{ empresa.rfc }}</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block navbar_actions %}
+{% if has_odoo_connection %}
+<button
+    hx-get="{% url 'fiscal:master_panel_odoo_compare' company_id %}"
+    hx-target="#odoo-compare-result"
+    hx-swap="innerHTML transition:true"
+    hx-indicator="#compare-loading"
+    class="btn btn-sm btn-ghost font-semibold whitespace-nowrap gap-1"
+>
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+    </svg>
+    Verificar Odoo
+    <span id="compare-loading" class="loading loading-spinner loading-xs htmx-indicator"></span>
+</button>
+<form method="post" action="{% url 'fiscal:master_panel_odoo_sync_all' %}"
+      hx-post="{% url 'fiscal:master_panel_odoo_sync_all' %}"
+      hx-swap="none"
+      hx-on:htmx:after-request="htmx.trigger('#sync-progress', 'load')"
+      id="sync-form" class="inline">
+    {% csrf_token %}
+    <input type="hidden" name="company_id" value="{{ company_id }}">
+    <button type="submit"
+        {% if is_sync_running %}disabled{% endif %}
+        onclick="startSyncPolling()"
+        class="btn btn-sm font-semibold whitespace-nowrap gap-1 {% if is_sync_running %}btn-disabled{% else %}text-white border-none{% endif %}"
+        {% if not is_sync_running %}style="background-color: var(--eq-primary);"{% endif %}>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+        </svg>
+        Exportar a Odoo ({{ total_exportable }})
+    </button>
+</form>
+{% endif %}
+{% endblock %}
+
 {% block content %}
 <div class="min-h-screen bg-base-100 relative overflow-hidden">
     <div class="pointer-events-none absolute -top-40 -left-40 h-96 w-96 rounded-full bg-[color:var(--eq-primary)]/10 blur-3xl"></div>
     <div class="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-[color:var(--eq-secondary)]/10 blur-3xl"></div>
-
-    <!-- Navbar -->
-    <div class="navbar bg-base-100/90 backdrop-blur border-b border-base-300 px-6 sticky top-0 z-30">
-        <div class="flex-1">
-            <div class="flex items-center gap-3">
-                <a href="{% url 'fiscal:master_panel_descargas' %}" hx-boost="false"
-                   class="inline-flex items-center justify-center rounded-xl border border-base-300 bg-base-100 hover:bg-base-200 px-3 h-10 font-semibold gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                    </svg>
-                    Volver
-                </a>
-                <div>
-                    <h1 class="font-bold text-xl text-base-content">{{ empresa.nombre }}</h1>
-                    <p class="text-sm text-base-content/60 font-mono -mt-0.5">{{ empresa.rfc }}</p>
-                </div>
-            </div>
-        </div>
-        <div class="flex-none flex items-center gap-2">
-            {% if has_odoo_connection %}
-            <button
-                hx-get="{% url 'fiscal:master_panel_odoo_compare' company_id %}"
-                hx-target="#odoo-compare-result"
-                hx-swap="innerHTML transition:true"
-                hx-indicator="#compare-loading"
-                class="inline-flex items-center justify-center gap-2 rounded-xl px-4 h-10 font-semibold whitespace-nowrap border border-base-300 bg-base-100 hover:bg-base-200 transition-colors"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-                </svg>
-                Verificar contra Odoo
-                <span id="compare-loading" class="loading loading-spinner loading-xs htmx-indicator"></span>
-            </button>
-            <form method="post" action="{% url 'fiscal:master_panel_odoo_sync_all' %}"
-                  hx-post="{% url 'fiscal:master_panel_odoo_sync_all' %}"
-                  hx-swap="none"
-                  hx-on:htmx:after-request="htmx.trigger('#sync-progress', 'load')"
-                  id="sync-form">
-                {% csrf_token %}
-                <input type="hidden" name="company_id" value="{{ company_id }}">
-                <button type="submit"
-                    {% if is_sync_running %}disabled{% endif %}
-                    onclick="startSyncPolling()"
-                    class="inline-flex items-center justify-center gap-2 rounded-xl px-4 h-10 font-semibold whitespace-nowrap {% if is_sync_running %}bg-base-300 text-base-content/30 cursor-not-allowed{% else %}bg-[color:var(--eq-primary)] text-[color:var(--eq-primary-content)] hover:opacity-90{% endif %} transition-all border border-transparent">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                    </svg>
-                    Exportar a Odoo ({{ total_exportable }})
-                </button>
-            </form>
-            {% endif %}
-        </div>
-    </div>
 
     <div class="container mx-auto px-4 py-6 max-w-7xl">
 

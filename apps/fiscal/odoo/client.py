@@ -215,8 +215,17 @@ class OdooClient:
     # ========== Métodos específicos para CFDI ==========
 
     def find_invoice_by_uuid(self, uuid: str, company_id: int = None) -> Optional[dict]:
-        """Busca una factura por su UUID de CFDI."""
-        domain = [['l10n_mx_edi_cfdi_uuid', '=ilike', uuid]]
+        """Busca una factura por su UUID de CFDI (estándar + custom IT Admin)."""
+        uuid_upper = uuid.upper()
+        uuid_lower = uuid.lower()
+        # Buscar en campo estándar Y campo custom del módulo IT Admin
+        domain = [
+            '|', '|', '|',
+            ['l10n_mx_edi_cfdi_uuid', '=ilike', uuid],
+            ['l10n_mx_edi_cfdi_uuid_cusom', '=', uuid_upper],
+            ['l10n_mx_edi_cfdi_uuid_cusom', '=', uuid_lower],
+            ['l10n_mx_edi_cfdi_uuid', '=', uuid_upper],
+        ]
         if company_id:
             domain.append(['company_id', '=', company_id])
 
@@ -334,9 +343,24 @@ class OdooClient:
     # ========== Métodos para sincronización CFDI completa (Odoo 18) ==========
 
     def find_invoice_by_uuid_extended(self, uuid: str, company_id: int = None) -> Optional[dict]:
-        """Busca una factura por UUID usando múltiples métodos (Odoo 18)."""
+        """
+        Busca una factura por UUID usando múltiples métodos.
+
+        Busca en orden:
+        1. Campo estándar l10n_mx_edi_cfdi_uuid
+        2. Campo custom l10n_mx_edi_cfdi_uuid_cusom (módulo IT Admin)
+        3. l10n_mx_edi.document por attachment_uuid
+        4. ir.attachment por cfdi_uuid
+        """
         uuid_upper = uuid.upper()
         uuid_lower = uuid.lower()
+
+        move_fields = ['id', 'name', 'l10n_mx_edi_cfdi_uuid', 'state', 'move_type',
+                       'partner_id', 'amount_total', 'currency_id', 'invoice_date',
+                       'l10n_mx_edi_cfdi_state', 'l10n_mx_edi_cfdi_sat_state',
+                       'attachment_id']
+
+        # --- Búsqueda 1: Campo estándar l10n_mx_edi_cfdi_uuid ---
         domain = [
             '|', '|',
             ['l10n_mx_edi_cfdi_uuid', '=', uuid_upper],
@@ -346,17 +370,27 @@ class OdooClient:
         if company_id:
             domain.append(['company_id', '=', company_id])
 
-        invoices = self.search_read(
-            'account.move',
-            domain,
-            fields=['id', 'name', 'l10n_mx_edi_cfdi_uuid', 'state', 'move_type',
-                    'partner_id', 'amount_total', 'currency_id', 'invoice_date',
-                    'l10n_mx_edi_cfdi_state', 'l10n_mx_edi_cfdi_sat_state'],
-            limit=1
-        )
+        invoices = self.search_read('account.move', domain, fields=move_fields, limit=1)
         if invoices:
             return invoices[0]
 
+        # --- Búsqueda 2: Campo custom l10n_mx_edi_cfdi_uuid_cusom (IT Admin) ---
+        domain_custom = [
+            '|',
+            ['l10n_mx_edi_cfdi_uuid_cusom', '=', uuid_upper],
+            ['l10n_mx_edi_cfdi_uuid_cusom', '=', uuid_lower],
+        ]
+        if company_id:
+            domain_custom.append(['company_id', '=', company_id])
+
+        try:
+            invoices = self.search_read('account.move', domain_custom, fields=move_fields, limit=1)
+            if invoices:
+                return invoices[0]
+        except OdooClientError:
+            pass
+
+        # --- Búsqueda 3: l10n_mx_edi.document ---
         doc_domain = [
             '|', '|',
             ['attachment_uuid', '=', uuid_upper],
@@ -365,20 +399,19 @@ class OdooClient:
         ]
         try:
             docs = self.search_read(
-                'l10n_mx_edi.document',
-                doc_domain,
+                'l10n_mx_edi.document', doc_domain,
                 fields=['id', 'move_id', 'attachment_uuid', 'state', 'sat_state'],
                 limit=1
             )
             if docs and docs[0].get('move_id'):
                 move_id = docs[0]['move_id'][0] if isinstance(docs[0]['move_id'], (list, tuple)) else docs[0]['move_id']
-                return self.read('account.move', [move_id],
-                    fields=['id', 'name', 'l10n_mx_edi_cfdi_uuid', 'state', 'move_type',
-                            'partner_id', 'amount_total', 'l10n_mx_edi_cfdi_state',
-                            'l10n_mx_edi_cfdi_sat_state'])[0]
+                result = self.read('account.move', [move_id], fields=move_fields)
+                if result:
+                    return result[0]
         except OdooClientError:
             pass
 
+        # --- Búsqueda 4: ir.attachment por cfdi_uuid ---
         att_domain = [
             ['res_model', '=', 'account.move'],
             '|', '|',
@@ -388,18 +421,33 @@ class OdooClient:
         ]
         try:
             attachments = self.search_read(
-                'ir.attachment',
-                att_domain,
+                'ir.attachment', att_domain,
                 fields=['id', 'res_id', 'cfdi_uuid'],
                 limit=1
             )
             if attachments and attachments[0].get('res_id'):
-                return self.read('account.move', [attachments[0]['res_id']],
-                    fields=['id', 'name', 'l10n_mx_edi_cfdi_uuid', 'state', 'move_type',
-                            'partner_id', 'amount_total', 'l10n_mx_edi_cfdi_state',
-                            'l10n_mx_edi_cfdi_sat_state'])[0]
+                result = self.read('account.move', [attachments[0]['res_id']], fields=move_fields)
+                if result:
+                    return result[0]
         except OdooClientError:
             pass
+
+        # --- Búsqueda 5: ir.attachment vinculado via invoice_ids (cuando res_id fue limpiado) ---
+        try:
+            attachments = self.search_read(
+                'ir.attachment',
+                [['cfdi_uuid', 'in', [uuid_upper, uuid_lower]]],
+                fields=['id', 'invoice_ids'],
+                limit=1
+            )
+            if attachments and attachments[0].get('invoice_ids'):
+                inv_id = attachments[0]['invoice_ids'][0]
+                result = self.read('account.move', [inv_id], fields=move_fields)
+                if result:
+                    return result[0]
+        except OdooClientError:
+            pass
+
         return None
 
     def create_cfdi_attachment(self, invoice_id: int, xml_content_base64: str,

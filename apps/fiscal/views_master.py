@@ -48,13 +48,19 @@ class MasterPanelView(TemplateView):
         # 3. Combinar la información (usando odooCompanyId como puente)
         merged_companies = self.merge_data(odoo_data, fiel_data)
         
-        # Ordenar: Primero los que tienen FIEL (True antes que False), luego alfabético
-        merged_companies.sort(key=lambda x: (not x.get('has_fiel', False), x.get('name', '').lower()))
-        
+        # Ordenar: 1) Configuradas con sync activo, 2) Configuradas sin sync, 3) Con FIEL, 4) Sin FIEL
+        merged_companies.sort(key=lambda x: (
+            not x.get('is_sync_enabled', False),
+            not x.get('is_local_tenant', False),
+            not x.get('has_fiel', False),
+            x.get('name', '').lower()
+        ))
+
         context['merged_companies'] = merged_companies
         context['total_odoo'] = len(odoo_data)
         context['total_fiels'] = len(fiel_data)
         context['total_ready'] = len([c for c in merged_companies if c.get('has_fiel')])
+        context['total_configured'] = len([c for c in merged_companies if c.get('is_sync_enabled')])
         
         # Opciones para el formulario de sincronización global
         context['hour_options'] = [{'value': i, 'label': f'{i:02d}:00'} for i in range(24)]

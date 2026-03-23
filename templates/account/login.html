@@ -1,0 +1,95 @@
+{% load i18n %}
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iniciar Sesión | Eqidis</title>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      :root {
+        --eq-primary: oklch(0.4732 0.1282 298.476);
+        --eq-primary-content: oklch(1 0 0);
+        --eq-secondary: oklch(0.6747 0.1568 20.3063);
+      }
+    </style>
+</head>
+<body class="min-h-screen bg-base-200 flex items-center justify-center p-4">
+  <div class="w-full max-w-md">
+    <div class="text-center mb-8">
+      <img src="/static/assets/logoDark.svg" alt="Eqidis" class="h-8 mx-auto mb-2" />
+      <p class="text-base-content/60 mt-1">Panel de Sincronización SAT</p>
+    </div>
+
+    <div class="card bg-base-100 shadow-xl border border-base-300 rounded-2xl">
+      <div class="card-body">
+        <h2 class="text-xl font-bold mb-1">Iniciar sesión</h2>
+        <p class="text-sm text-base-content/60 mb-6">Ingresa con tu correo y contraseña</p>
+
+        {% if messages %}
+        {% for message in messages %}
+        <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-error{% else %}alert-info{% endif %} mb-4 text-sm rounded-xl">
+          <span>{{ message }}</span>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        {% if form.errors %}
+        <div class="alert alert-error mb-4 text-sm rounded-xl">
+          <span>Correo o contraseña incorrectos. Intenta de nuevo.</span>
+        </div>
+        {% endif %}
+
+        <form method="post" action="{% url 'account_login' %}">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.GET.next }}">
+
+          <div class="form-control mb-4">
+            <label class="label" for="id_login"><span class="label-text font-medium">Correo electrónico</span></label>
+            <input
+              type="email"
+              name="login"
+              id="id_login"
+              class="input input-bordered w-full rounded-xl"
+              placeholder="tu@correo.com"
+              value="{{ form.login.value|default:'' }}"
+              autofocus
+              required
+            />
+          </div>
+
+          <div class="form-control mb-2">
+            <label class="label" for="id_password"><span class="label-text font-medium">Contraseña</span></label>
+            <input
+              type="password"
+              name="password"
+              id="id_password"
+              class="input input-bordered w-full rounded-xl"
+              placeholder="Tu contraseña"
+              required
+            />
+          </div>
+
+          <div class="flex items-center justify-between mb-6">
+            <label class="label cursor-pointer gap-2">
+              <input type="checkbox" name="remember" class="checkbox checkbox-sm" />
+              <span class="label-text text-sm">Recordarme</span>
+            </label>
+            <a href="{% url 'account_reset_password' %}" class="text-sm text-[color:var(--eq-primary)] hover:underline">
+              Olvidé mi contraseña
+            </a>
+          </div>
+
+          <button type="submit" class="btn w-full rounded-xl text-white border-none" style="background-color: var(--eq-primary);">
+            Iniciar sesión
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <p class="text-center text-xs text-base-content/40 mt-6">Eqidis Sync &copy; 2026</p>
+  </div>
+</body>
+</html>

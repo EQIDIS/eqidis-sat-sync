@@ -162,19 +162,18 @@
     </div>
     {% endif %}
     
-    <!-- Global Navbar (Visible only when tenant is active) -->
-    {% if current_empresa %}
-    <div class="navbar bg-base-100 shadow-lg sticky top-0 z-40">
-        <div class="flex-1">
-            <a
-              href="/"
-              class="btn btn-ghost text-xl bg-gradient-to-r from-[color:var(--eq-primary)] to-[color:var(--eq-secondary)] bg-clip-text text-transparent"
-            >
-              Eqidis
+    <!-- Global Navbar -->
+    {% if user.is_authenticated %}
+    <div class="navbar bg-base-100 shadow-lg sticky top-0 z-40 px-4">
+        <div class="flex-1 gap-3">
+            <a href="/" class="btn btn-ghost px-2" hx-boost="false">
+              <img src="/static/assets/logoDark.svg" alt="Eqidis" class="h-6" />
             </a>
+            {% block navbar_title %}{% endblock %}
         </div>
-        
-        <!-- Company Switcher -->
+
+        {% if current_empresa %}
+        <!-- Company Switcher (solo cuando hay empresa activa) -->
         <div class="flex-none gap-2">
             <div x-data="{ open: false }" class="dropdown dropdown-end" @click.away="open = false">
                 <button @click="open = !open" tabindex="0" class="btn btn-ghost gap-2">
@@ -201,9 +200,11 @@
                 </ul>
             </div>
         </div>
-        
-        <!-- User Menu -->
-        {% if user.is_authenticated %}
+        {% endif %}
+
+        {% block navbar_actions %}{% endblock %}
+
+        <!-- User Menu (siempre visible cuando está autenticado) -->
         <div class="flex-none gap-2">
             <div x-data="{ open: false }" class="dropdown dropdown-end" @click.away="open = false">
                 <button @click="open = !open" tabindex="0" class="btn btn-ghost btn-circle avatar placeholder">
@@ -211,20 +212,29 @@
                 </button>
                 <ul x-show="open" x-transition tabindex="0" class="dropdown-content menu bg-base-200 rounded-box z-[1] w-52 p-2 shadow-lg" style="display: none;">
                     <li class="menu-title"><span>{{ user.email }}</span></li>
-                    
-                    <!-- Shortcut: Master panel (superuser) or company dashboard -->
-                    <li><a href="{% if user.is_superuser %}{% url 'fiscal:master_panel' %}{% else %}{% url 'fiscal:dashboard' %}{% endif %}">
+
+                    {% if user.is_superuser %}
+                    <li><a href="{% url 'fiscal:master_panel' %}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 20V10M18 20V4M6 20V16" /></svg>
+                        Panel Maestro
+                    </a></li>
+                    {% endif %}
+
+                    {% if current_empresa %}
+                    <li><a href="{% url 'fiscal:dashboard' %}">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                         Certificados y Fiscal
                     </a></li>
-                    
+                    {% endif %}
+
                     <li class="border-t border-base-300 my-1"></li>
-                    <li><a href="{% url 'account_logout' %}">Cerrar Sesión</a></li>
+                    <li><a href="{% url 'account_logout' %}" hx-boost="false" class="text-error">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                        Cerrar Sesión
+                    </a></li>
                 </ul>
             </div>
         </div>
-        {% endif %}
-    </div>
     </div>
     {% endif %}
 

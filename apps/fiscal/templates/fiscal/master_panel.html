@@ -2,58 +2,65 @@
 
 {% block title %}Panel Maestro | Eqidis Sync{% endblock %}
 
+{% block navbar_title %}
+<div class="hidden md:block border-l border-base-300 pl-3">
+  <h1 class="font-bold text-sm text-base-content leading-tight">Panel Maestro</h1>
+  <p class="text-xs text-base-content/50">Sincronización SAT</p>
+</div>
+{% endblock %}
+
+{% block navbar_actions %}
+<a href="{% url 'fiscal:master_panel_descargas' %}" hx-boost="false"
+   class="btn btn-sm btn-ghost text-[color:var(--eq-primary)] font-semibold">
+  Portal de Descargas
+</a>
+{% endblock %}
+
 {% block content %}
 <div class="min-h-screen bg-base-100 relative overflow-hidden">
   <div class="pointer-events-none absolute -top-40 -left-40 h-96 w-96 rounded-full bg-[color:var(--eq-primary)]/10 blur-3xl"></div>
   <div class="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-[color:var(--eq-secondary)]/10 blur-3xl"></div>
 
-  <!-- Navbar Principal -->
-  <div class="navbar bg-base-100/90 backdrop-blur border-b border-base-300 px-6 sticky top-0 z-30">
-    <div class="flex-1">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-[color:var(--eq-primary)]/10 border border-[color:var(--eq-primary)]/20 flex items-center justify-center">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[color:var(--eq-primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 20V10" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M18 20V4" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 20V16" />
-          </svg>
-        </div>
-        <div>
-          <h1 class="font-bold text-2xl text-base-content">Panel Maestro de Sincronización</h1>
-          <p class="text-sm text-base-content/60 -mt-0.5">Odoo · FIEL · Empresas locales</p>
-        </div>
-      </div>
-    </div>
-    <div class="flex-none">
-      <a href="{% url 'fiscal:master_panel_descargas' %}" hx-boost="false" class="inline-flex items-center justify-center rounded-xl border border-base-300 bg-base-100 hover:bg-base-200 px-4 h-10 font-semibold">
-        Portal Global de Descargas
-      </a>
-    </div>
-  </div>
-
   <div class="container mx-auto px-4 py-8 max-w-7xl">
-    
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-      <div>
-        <h2 class="text-3xl font-bold">Resumen global</h2>
-        <p class="text-base-content/70 mt-1">Sincronización de FIELs (Eqidis) y empresas (Odoo)</p>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div class="stat bg-base-100 shadow-sm rounded-2xl border border-base-300 p-4">
+        <div class="stat-title text-xs">Empresas en Odoo</div>
+        <div class="stat-value text-2xl text-[color:var(--eq-primary)]">{{ total_odoo }}</div>
+        <div class="stat-desc text-xs">Total en el maestro</div>
+      </div>
+      <div class="stat bg-base-100 shadow-sm rounded-2xl border border-base-300 p-4">
+        <div class="stat-title text-xs">e.firmas disponibles</div>
+        <div class="stat-value text-2xl text-[color:var(--eq-primary)]">{{ total_fiels }}</div>
+        <div class="stat-desc text-xs">FIEL registrada</div>
+      </div>
+      <div class="stat bg-base-100 shadow-sm rounded-2xl border border-base-300 p-4">
+        <div class="stat-title text-xs">Listas para vincular</div>
+        <div class="stat-value text-2xl text-[color:var(--eq-primary)]">{{ total_ready }}</div>
+        <div class="stat-desc text-xs">Empresa + FIEL disponible</div>
+      </div>
+      <div class="stat bg-base-100 shadow-sm rounded-2xl border border-base-300 p-4">
+        <div class="stat-title text-xs">Descarga activa</div>
+        <div class="stat-value text-2xl text-green-600">{{ total_configured }}</div>
+        <div class="stat-desc text-xs">Con sincronización habilitada</div>
       </div>
     </div>
 
-    <!-- Configuracion Global de Sincronizacion -->
+    <!-- Programar descarga global -->
     <div class="collapse collapse-arrow rounded-2xl border border-base-300 bg-base-100 shadow-sm mb-8">
       <input type="checkbox" />
       <div class="collapse-title font-semibold flex items-center gap-2">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[color:var(--eq-primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[color:var(--eq-primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        Configuración de Sincronización Global
+        Programar descarga automática
         <span class="inline-flex items-center px-2 py-0.5 rounded-full border border-[color:var(--eq-primary)]/30 bg-[color:var(--eq-primary)]/10 text-[color:var(--eq-primary)] text-xs font-semibold">
-          Aplica a todas
+          Aplica a todas las activas
         </span>
       </div>
       <div class="collapse-content">
+        <p class="text-sm text-base-content/60 mb-4">Define cuándo se ejecutará la descarga automática de CFDIs para todas las empresas con descarga activa.</p>
         <div id="global-sync-result"></div>
         <form
             hx-post="{% url 'fiscal:master_panel_global_sync' %}"
@@ -62,7 +69,6 @@
             class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-2"
         >
             {% csrf_token %}
-            <!-- Dia de Ejecucion -->
             <div class="form-control">
                 <label class="label py-1"><span class="label-text text-xs">Día de ejecución</span></label>
                 <select name="weekly_sync_day" class="select select-bordered select-sm">
@@ -75,7 +81,6 @@
                     <option value="6" {% if global_sync_day == 6 %}selected{% endif %}>Domingo</option>
                 </select>
             </div>
-            <!-- Hora -->
             <div class="form-control">
                 <label class="label py-1"><span class="label-text text-xs">Hora</span></label>
                 <select name="weekly_sync_hour" class="select select-bordered select-sm">
@@ -84,7 +89,6 @@
                     {% endfor %}
                 </select>
             </div>
-            <!-- Minuto -->
             <div class="form-control">
                 <label class="label py-1"><span class="label-text text-xs">Minuto</span></label>
                 <select name="weekly_sync_minute" class="select select-bordered select-sm">
@@ -93,7 +97,6 @@
                     {% endfor %}
                 </select>
             </div>
-            <!-- Rango de dias -->
             <div class="form-control">
                 <label class="label py-1"><span class="label-text text-xs">Rango a descargar</span></label>
                 <select name="weekly_sync_days_range" class="select select-bordered select-sm">
@@ -102,7 +105,6 @@
                     {% endfor %}
                 </select>
             </div>
-            <!-- Estado y Botón -->
             <div class="form-control col-span-1 md:col-span-4 mt-2 flex flex-col md:flex-row justify-end gap-3">
                 <button
                   type="button"
@@ -115,124 +117,194 @@
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
-                  Sincronizar Seleccionadas Ahora
+                  Ejecutar descarga ahora
                 </button>
                 <button
                   type="submit"
                   class="inline-flex items-center justify-center rounded-xl px-4 h-10 w-full md:w-auto font-semibold bg-[color:var(--eq-primary)] text-[color:var(--eq-primary-content)] hover:opacity-90 transition-opacity border border-[color:var(--eq-primary)]"
                 >
-                    Aplicar a todas las configuradas
+                    Guardar programación
                 </button>
             </div>
         </form>
       </div>
     </div>
 
-    <!-- Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-      <div class="stat bg-base-100 shadow-sm rounded-2xl border border-base-300">
-        <div class="stat-title">Empresas en Odoo</div>
-        <div class="stat-value text-[color:var(--eq-primary)]">{{ total_odoo }}</div>
-        <div class="stat-desc">Todas las empresas en el maestro Odoo</div>
-      </div>
-      
-      <div class="stat bg-base-100 shadow-sm rounded-2xl border border-base-300">
-        <div class="stat-title">Fieles en DynamoDB</div>
-        <div class="stat-value text-[color:var(--eq-primary)]">{{ total_fiels }}</div>
-        <div class="stat-desc">Usuarios con e.firma registrada (Eqidis Front)</div>
-      </div>
-      
-      <div class="stat bg-base-100 shadow-sm rounded-2xl border border-base-300">
-        <div class="stat-title">Listas para Sincronizar</div>
-        <div class="stat-value text-[color:var(--eq-primary)]">{{ total_ready }}</div>
-        <div class="stat-desc">Empresas en Odoo con FIEL disponible</div>
-      </div>
-    </div>
-
-    <!-- Table -->
-    <div class="card bg-base-100 border border-base-300 shadow-xl rounded-2xl">
+    <!-- Empresas con descarga activa -->
+    {% if total_configured > 0 %}
+    <h3 class="text-lg font-bold mb-3 flex items-center gap-2">
+      <span class="w-2 h-2 rounded-full bg-green-500"></span>
+      Empresas con descarga activa
+      <span class="text-sm font-normal text-base-content/50">({{ total_configured }})</span>
+    </h3>
+    <div class="card bg-base-100 border border-green-200 shadow-sm rounded-2xl mb-8">
       <div class="card-body p-0 overflow-x-auto">
-        <table class="table table-zebra w-full text-base">
-          <!-- head -->
-          <thead class="bg-base-200/70 text-base-content text-sm">
+        <table class="table w-full text-sm">
+          <thead class="bg-green-50 text-base-content text-xs">
             <tr>
-              <th>ID Odoo</th>
               <th>Empresa</th>
               <th>RFC</th>
-              <th>Disponibilidad FIEL</th>
-              <th>Habilitar Descarga Masiva</th>
-              <th>Estatus Local</th>
+              <th>e.firma</th>
+              <th class="text-center">Descarga automática</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {% for company in merged_companies %}
+            {% if company.is_sync_enabled %}
             <tr class="hover">
-              <td class="font-mono text-sm text-base-content/70">{{ company.odoo_id }}</td>
-              <td class="font-semibold">{{ company.name }}</td>
-              <td class="font-mono">{{ company.rfc }}</td>
+              <td>
+                <div class="font-semibold">{{ company.name }}</div>
+                <div class="text-xs text-base-content/50">ID Odoo: {{ company.odoo_id }}</div>
+              </td>
+              <td class="font-mono text-xs">{{ company.rfc }}</td>
+              <td>
+                <div class="inline-flex items-center gap-1 whitespace-nowrap px-2 py-0.5 rounded-full border border-green-300 bg-green-50 text-green-700 text-xs font-semibold">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-3.5 h-3.5 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                  Verificada
+                </div>
+              </td>
+              <td class="text-center">
+                <div class="form-control items-center">
+                  <input
+                    type="checkbox"
+                    class="toggle toggle-sm toggle-success"
+                    name="is_enabled"
+                    checked
+                    hx-post="{% url 'fiscal:master_panel_toggle_sync' %}"
+                    hx-vals='{"local_tenant_id": "{{ company.local_tenant_id }}"}'
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-trigger="change"
+                    hx-swap="none"
+                    title="Desactivar descarga automática"
+                  />
+                </div>
+              </td>
+              <td>
+                <a href="{% url 'fiscal:master_panel_descargas_cfdis' company.local_tenant_id %}"
+                   class="btn btn-sm btn-ghost text-[color:var(--eq-primary)]"
+                   hx-boost="false"
+                   title="Ver comprobantes descargados">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Ver CFDIs
+                </a>
+              </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Todas las empresas -->
+    <h3 class="text-lg font-bold mb-3">Todas las empresas de Odoo</h3>
+    <p class="text-sm text-base-content/60 mb-4">Para activar la descarga automática de una empresa, primero vincúlala con el botón "Activar" y luego enciende el toggle de descarga.</p>
+    <div class="card bg-base-100 border border-base-300 shadow-sm rounded-2xl">
+      <div class="card-body p-0 overflow-x-auto">
+        <table class="table w-full text-sm">
+          <thead class="bg-base-200/70 text-base-content text-xs">
+            <tr>
+              <th>Empresa</th>
+              <th>RFC</th>
+              <th>e.firma (FIEL)</th>
+              <th>Estado</th>
+              <th class="text-center">Descarga automática</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for company in merged_companies %}
+            <tr class="hover {% if company.is_sync_enabled %}bg-green-50/30{% endif %}">
+              <td>
+                <div class="font-semibold">{{ company.name }}</div>
+                <div class="text-xs text-base-content/50">ID Odoo: {{ company.odoo_id }}</div>
+              </td>
+              <td class="font-mono text-xs">{{ company.rfc }}</td>
               <td>
                 {% if company.has_fiel %}
                   <div class="inline-flex items-center gap-1 whitespace-nowrap px-2 py-0.5 rounded-full border border-[color:var(--eq-primary)]/30 bg-[color:var(--eq-primary)]/10 text-[color:var(--eq-primary)] text-xs font-semibold">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-4 h-4 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                    FIEL Descifrada
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-3.5 h-3.5 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    Disponible
                   </div>
                 {% else %}
-                  <div class="badge badge-ghost gap-1 whitespace-nowrap">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-4 h-4 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                    Sin FIEL
+                  <div class="inline-flex items-center gap-1 whitespace-nowrap px-2 py-0.5 rounded-full border border-base-300 bg-base-100 text-base-content/50 text-xs font-semibold">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-3.5 h-3.5 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    No registrada
                   </div>
                 {% endif %}
               </td>
               <td>
+                {% if company.is_sync_enabled %}
+                  <div class="inline-flex items-center gap-1 whitespace-nowrap px-2 py-0.5 rounded-full border border-green-300 bg-green-50 text-green-700 text-xs font-semibold">
+                    <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                    Activa
+                  </div>
+                {% elif company.is_local_tenant %}
+                  <div class="inline-flex items-center gap-1 whitespace-nowrap px-2 py-0.5 rounded-full border border-amber-300 bg-amber-50 text-amber-700 text-xs font-semibold">
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                    Vinculada
+                  </div>
+                {% else %}
+                  <div class="inline-flex items-center gap-1 whitespace-nowrap px-2 py-0.5 rounded-full border border-base-300 bg-base-100 text-base-content/50 text-xs font-semibold">
+                    Sin vincular
+                  </div>
+                {% endif %}
+              </td>
+              <td class="text-center">
                 {% if company.is_local_tenant %}
-                  <div class="inline-flex items-center gap-1 whitespace-nowrap px-2 py-0.5 rounded-full border border-[color:var(--eq-primary)]/30 bg-[color:var(--eq-primary)]/10 text-[color:var(--eq-primary)] text-xs font-semibold">
-                    Activa en Eqidis
+                  <div class="form-control items-center">
+                    <input
+                      type="checkbox"
+                      class="toggle toggle-sm {% if company.is_sync_enabled %}toggle-success{% endif %}"
+                      name="is_enabled"
+                      {% if company.is_sync_enabled %}checked{% endif %}
+                      hx-post="{% url 'fiscal:master_panel_toggle_sync' %}"
+                      hx-vals='{"local_tenant_id": "{{ company.local_tenant_id }}"}'
+                      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                      hx-trigger="change"
+                      hx-swap="none"
+                      title="Activar/desactivar descarga automática"
+                    />
                   </div>
                 {% else %}
-                  <div class="inline-flex items-center gap-1 whitespace-nowrap px-2 py-0.5 rounded-full border border-base-300 bg-base-100 text-base-content/70 text-xs font-semibold">
-                    No Vinculada
-                  </div>
+                  <span class="text-xs text-base-content/40">—</span>
                 {% endif %}
               </td>
               <td>
-                {% if company.is_local_tenant %}
-                  <div class="form-control w-fit">
-                    <label class="cursor-pointer label p-0 gap-2">
-                      <input 
-                        type="checkbox" 
-                        class="toggle toggle-sm {% if company.is_sync_enabled %}toggle-primary{% endif %}" 
-                        name="is_enabled"
-                        {% if company.is_sync_enabled %}checked{% endif %}
-                        hx-post="{% url 'fiscal:master_panel_toggle_sync' %}"
-                        hx-vals='{"local_tenant_id": "{{ company.local_tenant_id }}"}'
-                        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                        hx-trigger="change"
-                        hx-swap="none"
-                        title="Habilitar/deshabilitar la descarga automática"
-                      />
-                    </label>
-                  </div>
-                {% else %}
-                  <span class="text-xs text-base-content/50">Requiere configuración</span>
-                {% endif %}
-              </td>
-              <td>
-                <div class="flex gap-2">
-                  <button 
-                    class="btn btn-sm btn-outline" 
-                    {% if not company.has_fiel %}disabled{% endif %} 
-                    title="Configurar y Sincronizar Tenant"
-                    hx-post="{% url 'fiscal:master_panel_sync' %}"
-                    hx-vals='{"odoo_id": "{{ company.odoo_id }}"}'
-                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                    hx-swap="outerHTML"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </button>
+                <div class="flex gap-1">
+                  {% if not company.is_local_tenant and company.has_fiel %}
+                    <button
+                      class="btn btn-sm bg-[color:var(--eq-primary)] text-[color:var(--eq-primary-content)] hover:opacity-90 border-none"
+                      title="Vincular empresa para habilitar la descarga automática de CFDIs"
+                      hx-post="{% url 'fiscal:master_panel_sync' %}"
+                      hx-vals='{"odoo_id": "{{ company.odoo_id }}"}'
+                      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                      hx-swap="outerHTML"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+                      </svg>
+                      Activar
+                    </button>
+                  {% elif company.is_local_tenant %}
+                    <a href="{% url 'fiscal:master_panel_descargas_cfdis' company.local_tenant_id %}"
+                       class="btn btn-sm btn-ghost text-[color:var(--eq-primary)]"
+                       hx-boost="false"
+                       title="Ver comprobantes descargados">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      Ver CFDIs
+                    </a>
+                  {% else %}
+                    <span class="text-xs text-base-content/40 italic">Requiere e.firma</span>
+                  {% endif %}
                 </div>
               </td>
             </tr>

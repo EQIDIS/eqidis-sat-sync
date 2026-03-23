@@ -1103,3 +1103,121 @@ class MasterPanelOdooSyncAllView(View):
             return redirect('fiscal:master_panel_descargas')
         return redirect('fiscal:master_panel_descargas')
 
+
+@method_decorator(user_passes_test(is_admin), name='dispatch')
+class MasterPanelOdooDeleteAllView(View):
+    """
+    Elimina de Odoo todas las facturas (emitidas y recibidas) y documentos digitales
+    que fueron creados por la sincronización para una empresa específica.
+    Útil para pruebas y re-sincronización limpia.
+    """
+    def post(self, request, *args, **kwargs):
+        from apps.fiscal.models import CfdiDocument
+        from apps.fiscal.odoo.client import create_client_from_connection
+
+        company_id = request.POST.get('company_id')
+        if not company_id:
+            return HttpResponse(
+                '<div class="alert alert-error">Falta company_id</div>'
+            )
+
+        connection = OdooConnection.objects.filter(
+            empresa_id=company_id, status='active'
+        ).first()
+        if not connection:
+            return HttpResponse(
+                '<div class="alert alert-warning">Sin conexión activa a Odoo</div>'
+            )
+
+        try:
+            client = create_client_from_connection(connection)
+            odoo_company_id = connection.odoo_company_id
+
+            # 1. Buscar y eliminar facturas (account.move) con UUID CFDI
+            invoices = client.search_read(
+                'account.move',
+                [
+                    ['l10n_mx_edi_cfdi_uuid', '!=', False],
+                    ['company_id', '=', odoo_company_id],
+                ],
+                fields=['id', 'state'],
+                limit=0
+            )
+            inv_ids = [inv['id'] for inv in invoices]
+            deleted_invoices = 0
+
+            if inv_ids:
+                # Pasar a borrador las publicadas
+                posted_ids = [inv['id'] for inv in invoices if inv['state'] == 'posted']
+                if posted_ids:
+                    client.write('account.move', posted_ids, {'state': 'draft'})
+
+                # Eliminar l10n_mx_edi.document asociados
+                edi_docs = client.search_read(
+                    'l10n_mx_edi.document',
+                    [['move_id', 'in', inv_ids]],
+                    fields=['id'],
+                    limit=0
+                )
+                if edi_docs:
+                    edi_ids = [d['id'] for d in edi_docs]
+                    client.execute_kw('l10n_mx_edi.document', 'unlink', [edi_ids])
+
+                # Eliminar facturas
+                client.execute_kw('account.move', 'unlink', [inv_ids])
+                deleted_invoices = len(inv_ids)
+
+            # 2. Buscar y eliminar documentos digitales (ir.attachment con cfdi_uuid)
+            attachments = client.search_read(
+                'ir.attachment',
+                [
+                    ['cfdi_uuid', '!=', False],
+                    ['company_id', '=', odoo_company_id],
+                ],
+                fields=['id'],
+                limit=0
+            )
+            att_ids = [att['id'] for att in attachments]
+            deleted_attachments = 0
+
+            if att_ids:
+                client.execute_kw('ir.attachment', 'unlink', [att_ids])
+                deleted_attachments = len(att_ids)
+
+            # 3. Resetear flag creado_en_sistema en Django
+            updated = CfdiDocument.objects.filter(
+                company_id=company_id
+            ).update(creado_en_sistema=False)
+
+            # 4. Limpiar logs de sync
+            OdooSyncLog.objects.filter(connection=connection).delete()
+
+            html = f'''
+            <div class="alert alert-success shadow-lg">
+                <div>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <div>
+                        <h3 class="font-bold text-sm">Limpieza completada</h3>
+                        <p class="text-xs">{deleted_invoices} facturas eliminadas, {deleted_attachments} documentos digitales eliminados, {updated} CFDIs reseteados.</p>
+                    </div>
+                </div>
+            </div>
+            '''
+            return HttpResponse(html)
+
+        except Exception as e:
+            logger.exception(f"Error eliminando datos de Odoo para empresa {company_id}")
+            html = f'''
+            <div class="alert alert-error shadow-lg">
+                <div>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                    </svg>
+                    <span class="text-sm">Error: {str(e)[:200]}</span>
+                </div>
+            </div>
+            '''
+            return HttpResponse(html)
+

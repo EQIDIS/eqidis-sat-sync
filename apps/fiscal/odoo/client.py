@@ -218,24 +218,25 @@ class OdooClient:
         """Busca una factura por su UUID de CFDI (estándar + custom IT Admin)."""
         uuid_upper = uuid.upper()
         uuid_lower = uuid.lower()
-        # Buscar en campo estándar Y campo custom del módulo IT Admin
         domain = [
-            '|', '|', '|',
-            ['l10n_mx_edi_cfdi_uuid', '=ilike', uuid],
-            ['l10n_mx_edi_cfdi_uuid_cusom', '=', uuid_upper],
-            ['l10n_mx_edi_cfdi_uuid_cusom', '=', uuid_lower],
-            ['l10n_mx_edi_cfdi_uuid', '=', uuid_upper],
+            '|',
+            ['l10n_mx_edi_cfdi_uuid', 'in', [uuid_upper, uuid_lower]],
+            ['l10n_mx_edi_cfdi_uuid_cusom', 'in', [uuid_upper, uuid_lower]],
         ]
         if company_id:
             domain.append(['company_id', '=', company_id])
 
-        invoices = self.search_read(
-            'account.move',
-            domain,
-            fields=['id', 'name', 'l10n_mx_edi_cfdi_uuid', 'state', 'move_type',
-                    'partner_id', 'amount_total', 'currency_id', 'invoice_date']
-        )
-        return invoices[0] if invoices else None
+        try:
+            invoices = self.search_read(
+                'account.move',
+                domain,
+                fields=['id', 'name', 'l10n_mx_edi_cfdi_uuid', 'state', 'move_type',
+                        'partner_id', 'amount_total', 'currency_id', 'invoice_date'],
+                limit=1
+            )
+            return invoices[0] if invoices else None
+        except OdooClientError:
+            return None
 
     def find_partner_by_vat(self, vat: str, company_id: int = None) -> Optional[dict]:
         """Busca un partner por su RFC/VAT."""
@@ -347,10 +348,9 @@ class OdooClient:
         Busca una factura por UUID usando múltiples métodos.
 
         Busca en orden:
-        1. Campo estándar l10n_mx_edi_cfdi_uuid
-        2. Campo custom l10n_mx_edi_cfdi_uuid_cusom (módulo IT Admin)
-        3. l10n_mx_edi.document por attachment_uuid
-        4. ir.attachment por cfdi_uuid
+        1. Campo estándar l10n_mx_edi_cfdi_uuid (account.move)
+        2. Campo custom l10n_mx_edi_cfdi_uuid_cusom (account.move, módulo IT Admin)
+        3. ir.attachment por cfdi_uuid (sin filtrar res_model, ya que se limpia)
         """
         uuid_upper = uuid.upper()
         uuid_lower = uuid.lower()
@@ -362,10 +362,9 @@ class OdooClient:
 
         # --- Búsqueda 1: Campo estándar l10n_mx_edi_cfdi_uuid ---
         domain = [
-            '|', '|',
+            '|',
             ['l10n_mx_edi_cfdi_uuid', '=', uuid_upper],
             ['l10n_mx_edi_cfdi_uuid', '=', uuid_lower],
-            ['l10n_mx_edi_cfdi_uuid', '=ilike', uuid]
         ]
         if company_id:
             domain.append(['company_id', '=', company_id])
@@ -390,61 +389,28 @@ class OdooClient:
         except OdooClientError:
             pass
 
-        # --- Búsqueda 3: l10n_mx_edi.document ---
-        doc_domain = [
-            '|', '|',
-            ['attachment_uuid', '=', uuid_upper],
-            ['attachment_uuid', '=', uuid_lower],
-            ['attachment_uuid', '=ilike', uuid]
-        ]
-        try:
-            docs = self.search_read(
-                'l10n_mx_edi.document', doc_domain,
-                fields=['id', 'move_id', 'attachment_uuid', 'state', 'sat_state'],
-                limit=1
-            )
-            if docs and docs[0].get('move_id'):
-                move_id = docs[0]['move_id'][0] if isinstance(docs[0]['move_id'], (list, tuple)) else docs[0]['move_id']
-                result = self.read('account.move', [move_id], fields=move_fields)
-                if result:
-                    return result[0]
-        except OdooClientError:
-            pass
-
-        # --- Búsqueda 4: ir.attachment por cfdi_uuid ---
-        att_domain = [
-            ['res_model', '=', 'account.move'],
-            '|', '|',
-            ['cfdi_uuid', '=', uuid_upper],
-            ['cfdi_uuid', '=', uuid_lower],
-            ['cfdi_uuid', '=ilike', uuid]
-        ]
-        try:
-            attachments = self.search_read(
-                'ir.attachment', att_domain,
-                fields=['id', 'res_id', 'cfdi_uuid'],
-                limit=1
-            )
-            if attachments and attachments[0].get('res_id'):
-                result = self.read('account.move', [attachments[0]['res_id']], fields=move_fields)
-                if result:
-                    return result[0]
-        except OdooClientError:
-            pass
-
-        # --- Búsqueda 5: ir.attachment vinculado via invoice_ids (cuando res_id fue limpiado) ---
+        # --- Búsqueda 3: ir.attachment por cfdi_uuid (sin filtrar res_model) ---
+        # Después de la creación, res_model se limpia a False, entonces NO filtramos por res_model
         try:
             attachments = self.search_read(
                 'ir.attachment',
                 [['cfdi_uuid', 'in', [uuid_upper, uuid_lower]]],
-                fields=['id', 'invoice_ids'],
+                fields=['id', 'res_id', 'invoice_ids', 'cfdi_uuid'],
                 limit=1
             )
-            if attachments and attachments[0].get('invoice_ids'):
-                inv_id = attachments[0]['invoice_ids'][0]
-                result = self.read('account.move', [inv_id], fields=move_fields)
-                if result:
-                    return result[0]
+            if attachments:
+                att = attachments[0]
+                # Intentar obtener la factura de invoice_ids o res_id
+                inv_id = None
+                if att.get('invoice_ids'):
+                    inv_id = att['invoice_ids'][0]
+                elif att.get('res_id'):
+                    inv_id = att['res_id']
+
+                if inv_id:
+                    result = self.read('account.move', [inv_id], fields=move_fields)
+                    if result:
+                        return result[0]
         except OdooClientError:
             pass
 

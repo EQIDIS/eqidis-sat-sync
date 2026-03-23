@@ -278,6 +278,17 @@ TENANT_EXEMPT_PATHS = [
 ]
 
 # =============================================================================
+# Cache Configuration (Redis - compartido entre workers para locks distribuidos)
+# =============================================================================
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': os.environ.get('REDIS_URL', 'redis://localhost:6379/1'),
+    }
+}
+
+# =============================================================================
 # Celery Configuration (Async Tasks)
 # =============================================================================
 

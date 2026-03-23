@@ -367,31 +367,55 @@ class OdooInvoiceSyncService:
             # 5. Buscar/crear partner
             partner_id = self._find_or_create_partner(cfdi_data, move_type, company_id)
 
+            # 5.5 Segunda verificación anti-duplicado justo antes de crear
+            # (protección contra condiciones de carrera en ejecución concurrente)
+            recheck = client.find_invoice_by_uuid_extended(cfdi_uuid, company_id)
+            if recheck:
+                logger.info(f"UUID {cfdi_uuid} encontrado en re-verificación (race condition evitada)")
+                result = self._handle_existing_invoice(recheck, sync_log, xml_content)
+                return result
+
             # 6. Crear la factura Date-Driven (sin UUID - será computado)
             invoice_id = self._create_invoice_base(
                 cfdi_data, partner_id, move_type, company_id
             )
 
-            # 8. Crear attachment con el XML (patrón ADD module)
+            # 8. Buscar attachment existente o crear uno nuevo
             xml_base64 = base64.b64encode(xml_content.encode('utf-8')).decode('utf-8')
+            uuid_upper = cfdi_data.uuid.upper()
 
-            # Map move_type to CFDI Attachment Type defined by the ADD module
-            cfdi_type_map = {
-                'out_invoice': 'I',
-                'in_invoice': 'SI',
-                'out_refund': 'E',
-                'in_refund': 'SE'
-            }
-            cfdi_attachment_type = cfdi_type_map.get(move_type, 'I')
+            # Verificar si ya existe un attachment con este UUID (evitar duplicados en documentos digitales)
+            existing_att = None
+            try:
+                existing_att = client.search_read(
+                    'ir.attachment',
+                    [['cfdi_uuid', 'in', [uuid_upper, cfdi_data.uuid.lower()]]],
+                    fields=['id'],
+                    limit=1
+                )
+            except Exception:
+                pass
 
-            attachment_id = client.create_cfdi_attachment(
-                invoice_id=invoice_id,
-                xml_content_base64=xml_base64,
-                uuid=cfdi_data.uuid,
-                company_id=company_id,
-                cfdi_type=cfdi_attachment_type,
-                estado=sat_status
-            )
+            if existing_att:
+                attachment_id = existing_att[0]['id']
+                logger.info(f"Attachment existente encontrado para UUID {cfdi_data.uuid}: ID={attachment_id}")
+            else:
+                cfdi_type_map = {
+                    'out_invoice': 'I',
+                    'in_invoice': 'SI',
+                    'out_refund': 'E',
+                    'in_refund': 'SE'
+                }
+                cfdi_attachment_type = cfdi_type_map.get(move_type, 'I')
+
+                attachment_id = client.create_cfdi_attachment(
+                    invoice_id=invoice_id,
+                    xml_content_base64=xml_base64,
+                    uuid=cfdi_data.uuid,
+                    company_id=company_id,
+                    cfdi_type=cfdi_attachment_type,
+                    estado=sat_status
+                )
 
             # 9. Vincular factura ↔ attachment (patrón IT Admin import_xml_file)
             # Paso A: Escribir AMBOS campos en la factura en un solo write
@@ -402,6 +426,49 @@ class OdooInvoiceSyncService:
                 'attachment_id': attachment_id,
                 'l10n_mx_edi_cfdi_attachment_id': attachment_id,
             })
+
+            # Paso A.5: Verificación post-vinculación anti-duplicado
+            # Ahora que el UUID está poblado, verificar que no se creó duplicado
+            uuid_upper = cfdi_data.uuid.upper()
+            uuid_lower = cfdi_data.uuid.lower()
+            all_with_uuid = client.search_read(
+                'account.move',
+                [
+                    '|',
+                    ['l10n_mx_edi_cfdi_uuid', '=', uuid_upper],
+                    ['l10n_mx_edi_cfdi_uuid', '=', uuid_lower],
+                    ['company_id', '=', company_id],
+                ],
+                fields=['id'],
+                limit=10
+            )
+            if len(all_with_uuid) > 1:
+                # Hay duplicados - quedarnos con el de menor ID (el primero creado)
+                existing_ids = sorted([inv['id'] for inv in all_with_uuid])
+                if invoice_id != existing_ids[0]:
+                    # Nosotros creamos el duplicado, eliminarlo
+                    logger.warning(
+                        f"Duplicado detectado post-creación para UUID {cfdi_uuid}: "
+                        f"invoice_id={invoice_id} ya existía como {existing_ids[0]}. "
+                        f"Eliminando duplicado."
+                    )
+                    try:
+                        # Revertir a borrador antes de eliminar
+                        client.write('account.move', [invoice_id], {'state': 'draft'})
+                        client.execute_kw('account.move', 'unlink', [[invoice_id]])
+                    except Exception as del_err:
+                        logger.error(f"No se pudo eliminar duplicado {invoice_id}: {del_err}")
+
+                    sync_log.status = 'success'
+                    sync_log.odoo_invoice_id = existing_ids[0]
+                    sync_log.action_taken = 'duplicate_prevented'
+                    sync_log.completed_at = timezone.now()
+                    sync_log.save()
+                    return {
+                        'status': 'exists',
+                        'odoo_invoice_id': existing_ids[0],
+                        'message': f'Duplicado detectado y eliminado. Factura existente: {existing_ids[0]}'
+                    }
 
             # Paso B: Actualizar attachment - vincular via invoice_ids y limpiar res_id/res_model
             # (patrón IT Admin: val.update({'invoice_ids': [(4, res_id)], 'res_id': False, 'res_model': False}))

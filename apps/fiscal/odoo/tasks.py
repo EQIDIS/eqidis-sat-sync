@@ -4,11 +4,15 @@ Tareas Celery para sincronización con Odoo.
 from celery import shared_task
 from django.utils import timezone
 from django.core.files.storage import default_storage
+from django.core.cache import cache
 import logging
 
 from apps.integrations.odoo.models import OdooConnection, OdooSyncLog
 
 logger = logging.getLogger(__name__)
+
+# Timeout del lock: 10 minutos (debe ser >= time_limit de la tarea)
+SYNC_LOCK_TIMEOUT = 600
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
@@ -19,6 +23,13 @@ def sync_cfdi_to_odoo_task(self, empresa_id: int, cfdi_uuid: str,
 
     logger.info(f"Iniciando sincronización CFDI {cfdi_uuid} para empresa {empresa_id}")
 
+    # Lock por UUID+empresa para evitar procesamiento concurrente del mismo CFDI
+    lock_key = f"sync_cfdi_lock_{empresa_id}_{cfdi_uuid}"
+    acquired = cache.add(lock_key, True, 120)  # 2 min timeout
+    if not acquired:
+        logger.warning(f"CFDI {cfdi_uuid} ya está siendo procesado para empresa {empresa_id}")
+        return {'status': 'skipped', 'reason': 'Ya en procesamiento'}
+
     try:
         result = sync_cfdi_to_odoo(empresa_id, cfdi_uuid, xml_content, auto_post)
         logger.info(f"Resultado sincronización: {result}")
@@ -26,6 +37,8 @@ def sync_cfdi_to_odoo_task(self, empresa_id: int, cfdi_uuid: str,
     except Exception as e:
         logger.exception(f"Error en tarea de sincronización: {e}")
         raise self.retry(exc=e)
+    finally:
+        cache.delete(lock_key)
 
 
 @shared_task
@@ -39,25 +52,38 @@ def sync_pending_cfdis_task(empresa_id: int = None, limit: int = 100):
 
     results = []
     for connection in connections:
-        synced_uuids = OdooSyncLog.objects.filter(
+        synced_uuids = set(OdooSyncLog.objects.filter(
             connection=connection,
             status='success'
-        ).values_list('cfdi_uuid', flat=True)
+        ).values_list('cfdi_uuid', flat=True))
+
+        # También excluir UUIDs con logs pending (ya en cola)
+        pending_log_uuids = set(OdooSyncLog.objects.filter(
+            connection=connection,
+            status='pending'
+        ).values_list('cfdi_uuid', flat=True))
 
         pending_cfdis = CfdiDocument.objects.filter(
             company=connection.empresa
         ).exclude(
-            uuid__in=synced_uuids
+            uuid__in=synced_uuids | pending_log_uuids
         )[:limit]
 
         logger.info(f"Encontrados {pending_cfdis.count()} CFDIs pendientes para {connection.empresa}")
 
+        queued_uuids = set()
         for cfdi in pending_cfdis:
+            cfdi_uuid_str = str(cfdi.uuid)
+            # Evitar encolar el mismo UUID más de una vez
+            if cfdi_uuid_str in queued_uuids:
+                continue
+            queued_uuids.add(cfdi_uuid_str)
+
             sync_cfdi_to_odoo_task.delay(
                 empresa_id=connection.empresa_id,
-                cfdi_uuid=str(cfdi.uuid)
+                cfdi_uuid=cfdi_uuid_str
             )
-            results.append(str(cfdi.uuid))
+            results.append(cfdi_uuid_str)
 
     return {
         'queued': len(results),
@@ -113,6 +139,24 @@ def sync_new_cfdis_to_odoo(self, empresa_id: int, request_id: int = None,
     from .sync_service import OdooInvoiceSyncService
 
     logger.info(f"Sincronizando CFDIs a Odoo para empresa {empresa_id} (force={force_sync})")
+
+    # --- 0. Lock por empresa para evitar ejecución concurrente ---
+    lock_key = f"sync_cfdis_odoo_lock_{empresa_id}"
+    acquired = cache.add(lock_key, True, SYNC_LOCK_TIMEOUT)
+    if not acquired:
+        logger.warning(f"Sincronización ya en curso para empresa {empresa_id}. Abortando.")
+        return {'status': 'skipped', 'reason': 'Sincronización ya en curso para esta empresa'}
+
+    try:
+        return _sync_new_cfdis_to_odoo_inner(empresa_id, request_id, force_sync)
+    finally:
+        cache.delete(lock_key)
+
+
+def _sync_new_cfdis_to_odoo_inner(empresa_id, request_id, force_sync):
+    """Lógica interna de sincronización (protegida por lock)."""
+    from apps.fiscal.models import CfdiDocument
+    from .sync_service import OdooInvoiceSyncService
 
     # --- 1. Validar conexión ---
     connection = OdooConnection.objects.filter(

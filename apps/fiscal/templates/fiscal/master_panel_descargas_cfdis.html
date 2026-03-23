@@ -17,6 +17,17 @@
 
 {% block navbar_actions %}
 {% if has_odoo_connection %}
+<!-- Botón Borrar Todo de Odoo -->
+<button
+    onclick="if(confirm('¿Estás seguro? Esto eliminará TODAS las facturas y documentos digitales de esta empresa en Odoo. Esta acción no se puede deshacer.')) { htmx.ajax('POST', '{% url 'fiscal:master_panel_odoo_delete_all' %}', {target:'#delete-result', swap:'innerHTML', values:{'company_id':'{{ company_id }}', 'csrfmiddlewaretoken':'{{ csrf_token }}'}}); document.getElementById('delete-loading').classList.remove('hidden'); }"
+    class="btn btn-sm btn-error btn-outline font-semibold whitespace-nowrap gap-1"
+>
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+    </svg>
+    Borrar Todo Odoo
+    <span id="delete-loading" class="loading loading-spinner loading-xs hidden"></span>
+</button>
 <button
     hx-get="{% url 'fiscal:master_panel_odoo_compare' company_id %}"
     hx-target="#odoo-compare-result"
@@ -87,6 +98,9 @@
                 <div class="stat-value text-2xl font-bold text-base-content/40">{{ total_pago }}</div>
             </div>
         </div>
+
+        <!-- Delete Result -->
+        <div id="delete-result" class="mb-4"></div>
 
         <!-- Sync Progress (Lazy Polling Container) -->
         {% if has_odoo_connection %}

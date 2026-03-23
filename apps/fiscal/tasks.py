@@ -21,7 +21,12 @@ logger = logging.getLogger(__name__)
 def solicitar_descarga_sat(self, empresa_id, fecha_inicio, fecha_fin, tipo='recibidos', user_id=None, is_auto_generated=False):
     """
     Paso 1: Crea solicitud de descarga al SAT.
-    
+
+    Antes de enviar al SAT, verifica que no exista una solicitud previa con el
+    mismo rango de fechas y tipo para evitar el bloqueo del SAT (CodEstatus 5002:
+    "Se han agotado las solicitudes de por vida"). El SAT permite máximo 3
+    solicitudes idénticas (mismo RFC, rango, tipo).
+
     Args:
         empresa_id: ID de la empresa
         fecha_inicio: Fecha inicio del rango (YYYY-MM-DD)
@@ -31,24 +36,48 @@ def solicitar_descarga_sat(self, empresa_id, fecha_inicio, fecha_fin, tipo='reci
         is_auto_generated: True si es por sincronización automática
     """
     from apps.integrations.sat.client import SATClient, SATClientError
-    
-    logger.info(f"Iniciando solicitud descarga SAT para empresa {empresa_id}: {fecha_inicio} - {fecha_fin}")
-    
+
+    logger.info(f"Iniciando solicitud descarga SAT para empresa {empresa_id}: {fecha_inicio} - {fecha_fin} ({tipo})")
+
     try:
         empresa = Empresa.objects.get(id=empresa_id)
-        
+
+        # --- Verificar solicitudes previas con el mismo rango para evitar bloqueo SAT ---
+        existing = CfdiDownloadRequest.objects.filter(
+            company=empresa,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+            tipo=tipo,
+            status__in=['requested', 'ready', 'downloaded'],
+        )
+        if existing.exists():
+            latest = existing.order_by('-created_at').first()
+            logger.info(
+                f"Solicitud duplicada evitada para empresa {empresa_id}: "
+                f"{fecha_inicio} - {fecha_fin} ({tipo}). "
+                f"Ya existe solicitud #{latest.id} con status={latest.status}"
+            )
+            return {
+                'success': True,
+                'request_id': latest.id,
+                'id_solicitud_sat': latest.request_id_sat,
+                'cod_estatus': 'SKIP',
+                'mensaje': f'Solicitud ya existente (#{latest.id}, {latest.status}). No se envió al SAT para evitar bloqueo.',
+                'skipped': True,
+            }
+
         # Obtener FIEL activa
         fiel = CfdiCertificate.objects.filter(
             company=empresa, tipo='FIEL', status='active'
         ).first()
-        
+
         if not fiel:
             logger.error(f"No hay FIEL activa para empresa {empresa_id}")
             return {'error': 'No hay FIEL activa configurada', 'success': False}
-        
+
         # Crear cliente SAT
         client = SATClient(fiel)
-        
+
         # Determinar parámetros según tipo
         if tipo == 'emitidos':
             result = client.solicitar_descarga(
@@ -64,11 +93,39 @@ def solicitar_descarga_sat(self, empresa_id, fecha_inicio, fecha_fin, tipo='reci
                 tipo='recibidos',
                 rfc_receptor=empresa.rfc,
             )
-        
+
+        # Detectar bloqueo del SAT (5002 = solicitudes agotadas)
+        cod_estatus = result.get('cod_estatus', '')
+        if str(cod_estatus) == '5002':
+            logger.warning(
+                f"SAT bloqueó solicitud para empresa {empresa_id}: "
+                f"{fecha_inicio} - {fecha_fin} ({tipo}). "
+                f"Mensaje: {result.get('mensaje')}"
+            )
+            # Guardar como fallida para no reintentar
+            request = CfdiDownloadRequest.objects.create(
+                company=empresa,
+                requested_by_id=user_id,
+                fecha_inicio=fecha_inicio,
+                fecha_fin=fecha_fin,
+                tipo=tipo,
+                status='failed',
+                request_id_sat=result.get('id_solicitud'),
+                sat_response_raw=str(result),
+                is_auto_generated=is_auto_generated,
+            )
+            return {
+                'success': False,
+                'request_id': request.id,
+                'id_solicitud_sat': result.get('id_solicitud'),
+                'cod_estatus': cod_estatus,
+                'mensaje': result.get('mensaje'),
+            }
+
         # Actualizar timestamp de última sincronización en la empresa
         empresa.last_mass_sync = timezone.now()
         empresa.save(update_fields=['last_mass_sync'])
-        
+
         # Crear registro de solicitud
         request = CfdiDownloadRequest.objects.create(
             company=empresa,
@@ -81,9 +138,9 @@ def solicitar_descarga_sat(self, empresa_id, fecha_inicio, fecha_fin, tipo='reci
             sat_response_raw=str(result),
             is_auto_generated=is_auto_generated,
         )
-        
+
         logger.info(f"Solicitud SAT creada: {request.id} - ID SAT: {result.get('id_solicitud')}")
-        
+
         return {
             'success': True,
             'request_id': request.id,
@@ -91,7 +148,7 @@ def solicitar_descarga_sat(self, empresa_id, fecha_inicio, fecha_fin, tipo='reci
             'cod_estatus': result.get('cod_estatus'),
             'mensaje': result.get('mensaje'),
         }
-        
+
     except SATClientError as e:
         logger.error(f"Error cliente SAT: {e}")
         return {'error': str(e), 'success': False}

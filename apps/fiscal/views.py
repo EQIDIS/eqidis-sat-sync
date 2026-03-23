@@ -1770,9 +1770,10 @@ class OdooExportView(TenantMixin, View):
 
     def post(self, request, *args, **kwargs):
         import json
+        from django.core.cache import cache
         from .models import CfdiDocument
         from apps.integrations.odoo.models import OdooConnection
-        from apps.fiscal.odoo.tasks import sync_new_cfdis_to_odoo
+        from apps.fiscal.odoo.tasks import sync_new_cfdis_to_odoo, SYNC_LOCK_TIMEOUT
 
         connection = OdooConnection.objects.filter(
             empresa=self.empresa, status='active'
@@ -1781,10 +1782,16 @@ class OdooExportView(TenantMixin, View):
         if not connection:
             return HttpResponse('<div class="alert alert-warning">Sin conexión activa a Odoo</div>')
 
-        # Resetear estados y encolar tarea de fondo con force_sync
-        CfdiDocument.objects.filter(
-            company=self.empresa
-        ).exclude(tipo_cfdi='P').update(creado_en_sistema=False)
+        # Adquirir lock antes de resetear para evitar race condition
+        lock_key = f"sync_cfdis_odoo_lock_{self.empresa.id}"
+        acquired = cache.add(lock_key, True, SYNC_LOCK_TIMEOUT)
+        try:
+            CfdiDocument.objects.filter(
+                company=self.empresa
+            ).exclude(tipo_cfdi='P').update(creado_en_sistema=False)
+        finally:
+            if acquired:
+                cache.delete(lock_key)
 
         total_exportable = CfdiDocument.objects.filter(
             company=self.empresa

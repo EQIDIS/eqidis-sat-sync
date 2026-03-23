@@ -985,26 +985,26 @@ class MasterPanelOdooCompareView(View):
             ).exclude(tipo_cfdi__in=['N', 'P']).values_list('uuid', flat=True)
         )
         
-        # Obtener documentos digitales de Odoo
+        # Obtener facturas de Odoo que tienen UUID CFDI (fuente de verdad)
         try:
             client = create_client_from_connection(connection)
-            odoo_attachments = client.search_read(
-                'ir.attachment',
+            odoo_invoices = client.search_read(
+                'account.move',
                 [
                     ('company_id', '=', connection.odoo_company_id),
-                    ('cfdi_type', 'in', ['I', 'SI', 'E', 'SE'])
+                    ('l10n_mx_edi_cfdi_uuid', '!=', False),
                 ],
-                fields=['id', 'cfdi_uuid', 'cfdi_type', 'estado'],
-                limit=1000
+                fields=['id', 'l10n_mx_edi_cfdi_uuid'],
+                limit=5000
             )
         except Exception as e:
             return HttpResponse(
                 f'<div class="alert alert-error text-sm">Error conectando a Odoo: {e}</div>'
             )
-        
+
         odoo_uuids = set()
-        for att in odoo_attachments:
-            uuid_str = (att.get('cfdi_uuid') or '').strip().lower()
+        for inv in odoo_invoices:
+            uuid_str = (inv.get('l10n_mx_edi_cfdi_uuid') or '').strip().lower()
             if uuid_str:
                 odoo_uuids.add(uuid_str)
         
@@ -1055,52 +1055,55 @@ class MasterPanelOdooSyncAllView(View):
     Si no, procesa TODAS las empresas con conexión activa.
     """
     def post(self, request, *args, **kwargs):
+        from django.core.cache import cache
         from apps.integrations.odoo.models import OdooConnection
-        from apps.fiscal.odoo.tasks import sync_new_cfdis_to_odoo
+        from apps.fiscal.odoo.tasks import sync_new_cfdis_to_odoo, SYNC_LOCK_TIMEOUT
         from apps.fiscal.models import CfdiDocument
-        
+
         company_id = request.POST.get('company_id')
-        
+
         if company_id:
-            # Exportar solo para una empresa específica
             active_connections = OdooConnection.objects.filter(
                 empresa_id=company_id, status='active'
             )
         else:
-            # Exportar para TODAS las empresas
             active_connections = OdooConnection.objects.filter(status='active')
-        
+
         if not active_connections.exists():
             messages.warning(request, "No hay conexiones Odoo activas para procesar.")
-            if company_id:
-                return redirect('fiscal:master_panel_descargas')
             return redirect('fiscal:master_panel_descargas')
-        
+
         count = 0
         for conn in active_connections:
-            # Resetear estado y fecha de inicio para el progreso
-            CfdiDocument.objects.filter(
-                company_id=conn.empresa_id
-            ).exclude(tipo_cfdi='P').update(creado_en_sistema=False)
-            
-            # Limpiar cualquier log 'pending' viejo para esta conexión 
-            # (evita bloqueos por workers muertos)
-            OdooSyncLog.objects.filter(connection=conn, status='pending').delete()
-            
-            conn.last_sync = timezone.now()
-            conn.save(update_fields=['last_sync'])
-            
+            # Adquirir lock antes de resetear para evitar race condition
+            # con una tarea de sync que esté corriendo
+            lock_key = f"sync_cfdis_odoo_lock_{conn.empresa_id}"
+            acquired = cache.add(lock_key, True, SYNC_LOCK_TIMEOUT)
+
+            try:
+                # Resetear estado
+                CfdiDocument.objects.filter(
+                    company_id=conn.empresa_id
+                ).exclude(tipo_cfdi='P').update(creado_en_sistema=False)
+
+                # Limpiar logs pending viejos
+                OdooSyncLog.objects.filter(connection=conn, status='pending').delete()
+
+                conn.last_sync = timezone.now()
+                conn.save(update_fields=['last_sync'])
+            finally:
+                # Liberar lock para que la tarea lo pueda adquirir
+                if acquired:
+                    cache.delete(lock_key)
+
             sync_new_cfdis_to_odoo.delay(empresa_id=conn.empresa_id, force_sync=True)
             count += 1
-            
+
         empresa_label = f"empresa {company_id}" if company_id else f"{count} empresas"
         messages.success(
-            request, 
+            request,
             f"¡Sincronización a Odoo Iniciada! Se procesarán TODOS los CFDIs de {empresa_label} en segundo plano."
         )
-        
-        if company_id:
-            return redirect('fiscal:master_panel_descargas')
         return redirect('fiscal:master_panel_descargas')
 
 

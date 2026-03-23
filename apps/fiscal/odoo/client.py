@@ -389,12 +389,15 @@ class OdooClient:
         except OdooClientError:
             pass
 
-        # --- Búsqueda 3: ir.attachment por cfdi_uuid (sin filtrar res_model) ---
-        # Después de la creación, res_model se limpia a False, entonces NO filtramos por res_model
+        # --- Búsqueda 3: ir.attachment por cfdi_uuid (filtrado por empresa) ---
+        # El mismo UUID puede existir legítimamente en otra empresa
+        att_domain = [['cfdi_uuid', 'in', [uuid_upper, uuid_lower]]]
+        if company_id:
+            att_domain.append(['company_id', '=', company_id])
         try:
             attachments = self.search_read(
                 'ir.attachment',
-                [['cfdi_uuid', 'in', [uuid_upper, uuid_lower]]],
+                att_domain,
                 fields=['id', 'res_id', 'invoice_ids', 'cfdi_uuid'],
                 limit=1
             )

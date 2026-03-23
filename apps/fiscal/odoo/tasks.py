@@ -1,41 +1,46 @@
 """
 Tareas Celery para sincronización con Odoo.
+
+Arquitectura de locks:
+- sync_new_cfdis_to_odoo: Lock por empresa (cache Redis) para evitar
+  ejecución concurrente. Si el lock está tomado, se absorbe silenciosamente
+  porque la tarea en curso re-consulta el DB en cada bache y recoge CFDIs
+  nuevos que se hayan agregado durante el procesamiento.
+- sync_cfdi_to_odoo_task: Lock por UUID+empresa para tareas individuales.
 """
 from celery import shared_task
 from django.utils import timezone
 from django.core.files.storage import default_storage
 from django.core.cache import cache
 import logging
+import time
 
 from apps.integrations.odoo.models import OdooConnection, OdooSyncLog
 
 logger = logging.getLogger(__name__)
 
-# Timeout del lock: 10 minutos (debe ser >= time_limit de la tarea)
-SYNC_LOCK_TIMEOUT = 600
+# Lock timeout: 20 minutos (cubre el time_limit de la tarea + margen)
+SYNC_LOCK_TIMEOUT = 1200
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def sync_cfdi_to_odoo_task(self, empresa_id: int, cfdi_uuid: str,
                             xml_content: str = None, auto_post: bool = True):
-    """Tarea Celery para sincronizar un CFDI hacia Odoo."""
+    """Tarea Celery para sincronizar un CFDI individual hacia Odoo."""
     from .sync_service import sync_cfdi_to_odoo
-
-    logger.info(f"Iniciando sincronización CFDI {cfdi_uuid} para empresa {empresa_id}")
 
     # Lock por UUID+empresa para evitar procesamiento concurrente del mismo CFDI
     lock_key = f"sync_cfdi_lock_{empresa_id}_{cfdi_uuid}"
-    acquired = cache.add(lock_key, True, 120)  # 2 min timeout
+    acquired = cache.add(lock_key, True, 120)
     if not acquired:
-        logger.warning(f"CFDI {cfdi_uuid} ya está siendo procesado para empresa {empresa_id}")
+        logger.info(f"CFDI {cfdi_uuid} ya está siendo procesado para empresa {empresa_id}")
         return {'status': 'skipped', 'reason': 'Ya en procesamiento'}
 
     try:
         result = sync_cfdi_to_odoo(empresa_id, cfdi_uuid, xml_content, auto_post)
-        logger.info(f"Resultado sincronización: {result}")
         return result
     except Exception as e:
-        logger.exception(f"Error en tarea de sincronización: {e}")
+        logger.exception(f"Error en tarea de sincronización CFDI {cfdi_uuid}: {e}")
         raise self.retry(exc=e)
     finally:
         cache.delete(lock_key)
@@ -43,7 +48,7 @@ def sync_cfdi_to_odoo_task(self, empresa_id: int, cfdi_uuid: str,
 
 @shared_task
 def sync_pending_cfdis_task(empresa_id: int = None, limit: int = 100):
-    """Sincroniza CFDIs pendientes hacia Odoo."""
+    """Sincroniza CFDIs pendientes hacia Odoo (dispara tareas individuales)."""
     from apps.fiscal.models import CfdiDocument
 
     connections = OdooConnection.objects.filter(status='active', auto_sync_enabled=True)
@@ -69,12 +74,9 @@ def sync_pending_cfdis_task(empresa_id: int = None, limit: int = 100):
             uuid__in=synced_uuids | pending_log_uuids
         )[:limit]
 
-        logger.info(f"Encontrados {pending_cfdis.count()} CFDIs pendientes para {connection.empresa}")
-
         queued_uuids = set()
         for cfdi in pending_cfdis:
             cfdi_uuid_str = str(cfdi.uuid)
-            # Evitar encolar el mismo UUID más de una vez
             if cfdi_uuid_str in queued_uuids:
                 continue
             queued_uuids.add(cfdi_uuid_str)
@@ -85,10 +87,7 @@ def sync_pending_cfdis_task(empresa_id: int = None, limit: int = 100):
             )
             results.append(cfdi_uuid_str)
 
-    return {
-        'queued': len(results),
-        'cfdis': results
-    }
+    return {'queued': len(results), 'cfdis': results}
 
 
 @shared_task
@@ -120,32 +119,32 @@ def verify_odoo_connection_task(connection_id: int):
         return {'status': 'error', 'message': str(e)}
 
 
-@shared_task(bind=True, time_limit=600, soft_time_limit=540)
+@shared_task(bind=True, time_limit=1200, soft_time_limit=1140)
 def sync_new_cfdis_to_odoo(self, empresa_id: int, request_id: int = None,
                            exclude_uuids: list = None, force_sync: bool = False):
     """
     Sincroniza CFDIs hacia Odoo en baches internos de 50.
-    
-    Procesa TODOS los CFDIs pendientes en una sola ejecución de tarea,
-    iterando internamente en lotes de 50 hasta que no queden más.
-    
-    Args:
-        empresa_id: ID de la empresa local
-        request_id: (Opcional) Filtrar por solicitud de descarga específica
-        exclude_uuids: (Deprecated, ignorado) Se mantiene por compatibilidad
-        force_sync: Si True, ignora estado previo y reprocesa todo
-    """
-    from apps.fiscal.models import CfdiDocument
-    from .sync_service import OdooInvoiceSyncService
 
+    Procesa TODOS los CFDIs pendientes iterando en lotes de 50.
+    El loop re-consulta el DB en cada iteración para recoger CFDIs
+    que se hayan agregado por descargas concurrentes.
+
+    Si otra tarea intenta correr para la misma empresa, se absorbe
+    silenciosamente (la tarea en curso se encarga de todo).
+    """
     logger.info(f"Sincronizando CFDIs a Odoo para empresa {empresa_id} (force={force_sync})")
 
-    # --- 0. Lock por empresa para evitar ejecución concurrente ---
+    # --- Lock por empresa ---
     lock_key = f"sync_cfdis_odoo_lock_{empresa_id}"
     acquired = cache.add(lock_key, True, SYNC_LOCK_TIMEOUT)
     if not acquired:
-        logger.warning(f"Sincronización ya en curso para empresa {empresa_id}. Abortando.")
-        return {'status': 'skipped', 'reason': 'Sincronización ya en curso para esta empresa'}
+        # La tarea en curso re-consulta el DB en cada bache, así que
+        # recoge cualquier CFDI nuevo. No necesitamos reintentar.
+        logger.info(
+            f"Sincronización ya en curso para empresa {empresa_id}. "
+            f"La tarea activa procesará los CFDIs pendientes."
+        )
+        return {'status': 'absorbed', 'reason': 'Otra tarea ya está procesando esta empresa'}
 
     try:
         return _sync_new_cfdis_to_odoo_inner(empresa_id, request_id, force_sync)
@@ -173,47 +172,61 @@ def _sync_new_cfdis_to_odoo_inner(empresa_id, request_id, force_sync):
         logger.error(f"Contraseña de Odoo no legible para empresa {empresa_id}. Abortando.")
         return {'status': 'error', 'reason': 'Error de contraseña (InvalidToken)'}
 
-    # --- 2. Construir queryset base (se reutiliza en cada iteración) ---
+    # --- 2. Procesar en baches ---
     BATCH_SIZE = 50
+    MAX_BATCHES = 200  # Hasta 10,000 CFDIs por ejecución
+    EMPTY_BATCH_WAIT = 3  # Segundos de espera cuando no hay CFDIs (por si están llegando)
+    MAX_EMPTY_WAITS = 2  # Máximo de esperas vacías antes de salir
+
     total_synced = 0
     total_exists = 0
     total_errors = 0
     total_skipped = 0
-    processed_uuids = set()  # UUIDs ya procesados en esta ejecución
+    processed_uuids = set()
     batch_number = 0
+    consecutive_empty = 0
 
     service = OdooInvoiceSyncService(connection)
 
-    while True:
+    while batch_number < MAX_BATCHES:
         batch_number += 1
 
-        # Construir queryset fresco en cada iteración
+        # Queryset fresco en cada iteración (captura CFDIs agregados por descargas concurrentes)
         cfdis_qs = CfdiDocument.objects.filter(
             company_id=empresa_id
-        ).exclude(tipo_cfdi='P')  # Siempre excluir Pagos a nivel DB
+        ).exclude(tipo_cfdi='P')
 
         if not force_sync:
-            # Modo automático: solo procesar los que NO se han creado
             cfdis_qs = cfdis_qs.filter(creado_en_sistema=False)
 
-        # Excluir los que ya procesamos en esta misma ejecución
         if processed_uuids:
             cfdis_qs = cfdis_qs.exclude(uuid__in=list(processed_uuids))
 
         if request_id:
             cfdis_qs = cfdis_qs.filter(download_package__request_id=request_id)
 
-        # Tomar el siguiente lote
         cfdis = list(cfdis_qs.order_by('id')[:BATCH_SIZE])
 
         if not cfdis:
-            logger.info(f"No quedan más CFDIs por procesar. Total baches: {batch_number - 1}")
-            break
+            # Puede haber CFDIs llegando de una descarga concurrente.
+            # Esperar brevemente y revisar una vez más antes de salir.
+            if consecutive_empty < MAX_EMPTY_WAITS:
+                consecutive_empty += 1
+                logger.info(
+                    f"Sin CFDIs pendientes. Esperando {EMPTY_BATCH_WAIT}s por descargas "
+                    f"concurrentes ({consecutive_empty}/{MAX_EMPTY_WAITS})..."
+                )
+                time.sleep(EMPTY_BATCH_WAIT)
+                continue
+            else:
+                logger.info(f"No quedan más CFDIs por procesar. Total baches: {batch_number - 1}")
+                break
 
+        consecutive_empty = 0  # Reset counter cuando encontramos CFDIs
         logger.info(f"Bache #{batch_number}: procesando {len(cfdis)} CFDIs...")
 
         for cfdi in cfdis:
-            processed_uuids.add(cfdi.uuid)  # UUID nativo del ORM
+            processed_uuids.add(cfdi.uuid)
             try:
                 # Leer XML desde S3
                 xml_content = None
@@ -224,7 +237,7 @@ def _sync_new_cfdis_to_odoo_inner(empresa_id, request_id, force_sync):
                     except Exception as e:
                         logger.warning(f"No se pudo leer XML de {cfdi.uuid}: {e}")
 
-                # Sincronizar
+                # Si no hay XML, el servicio retornará error (XML requerido para crear)
                 result = service.sync_cfdi_to_odoo(str(cfdi.uuid), xml_content)
                 status = result.get('status', 'error')
 
@@ -239,7 +252,6 @@ def _sync_new_cfdis_to_odoo_inner(empresa_id, request_id, force_sync):
                         cfdi.save(update_fields=['creado_en_sistema'])
                 elif status == 'skipped':
                     total_skipped += 1
-                    # Marcar como procesado para que no bloquee baches futuros
                     cfdi.creado_en_sistema = True
                     cfdi.save(update_fields=['creado_en_sistema'])
                 else:
@@ -255,14 +267,7 @@ def _sync_new_cfdis_to_odoo_inner(empresa_id, request_id, force_sync):
             f"{total_skipped} omitidos, {total_errors} errores"
         )
 
-        # Si el lote fue menor a BATCH_SIZE, ya no hay más
-        if len(cfdis) < BATCH_SIZE:
-            break
-
     # --- 3. Finalizar ---
-    # Ya no actualizamos last_sync aquí porque lo hace la vista al arrancar
-    # para marcar el inicio de la sesión de progreso.
-
     total_processed = total_synced + total_exists + total_skipped + total_errors
     logger.info(
         f"Sincronización FINALIZADA para empresa {empresa_id}: "

@@ -384,12 +384,16 @@ class OdooInvoiceSyncService:
             xml_base64 = base64.b64encode(xml_content.encode('utf-8')).decode('utf-8')
             uuid_upper = cfdi_data.uuid.upper()
 
-            # Verificar si ya existe un attachment con este UUID (evitar duplicados en documentos digitales)
+            # Verificar si ya existe un attachment con este UUID PARA ESTA EMPRESA
+            # (el mismo UUID puede existir en otra empresa legítimamente)
             existing_att = None
             try:
                 existing_att = client.search_read(
                     'ir.attachment',
-                    [['cfdi_uuid', 'in', [uuid_upper, cfdi_data.uuid.lower()]]],
+                    [
+                        ['cfdi_uuid', 'in', [uuid_upper, cfdi_data.uuid.lower()]],
+                        ['company_id', '=', company_id],
+                    ],
                     fields=['id'],
                     limit=1
                 )

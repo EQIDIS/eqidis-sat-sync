@@ -15,7 +15,7 @@ import base64
 import logging
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Optional
 from django.utils import timezone
@@ -1151,11 +1151,24 @@ class OdooInvoiceSyncService:
         if cfdi_data.forma_pago:
             payment_method_id = self._find_payment_method(client, cfdi_data.forma_pago)
 
+        # 6b. Calcular invoice_date_due según MetodoPago del XML (patrón IT Admin)
+        # l10n_mx_edi_payment_policy es un campo COMPUTE en Odoo que se calcula así:
+        #   - PUE: invoice_date_due en el MISMO mes que invoice_date
+        #   - PPD: invoice_date_due en un mes DIFERENTE
+        # Por eso forzamos la fecha de vencimiento para que Odoo compute la política correctamente.
+        invoice_date = cfdi_data.fecha
+        if cfdi_data.metodo_pago == 'PPD':
+            next_month = invoice_date.replace(day=1) + timedelta(days=32)
+            invoice_date_due = next_month.replace(day=1)
+        else:
+            invoice_date_due = invoice_date
+
         invoice_vals = {
             'move_type': move_type,
             'partner_id': partner_id,
             'company_id': company_id,
-            'invoice_date': cfdi_data.fecha.strftime('%Y-%m-%d'),
+            'invoice_date': invoice_date.strftime('%Y-%m-%d'),
+            'invoice_date_due': invoice_date_due.strftime('%Y-%m-%d'),
             'ref': ref,
             'payment_reference': ref if is_supplier else False,
             'journal_id': journal_id,
@@ -1163,7 +1176,6 @@ class OdooInvoiceSyncService:
             'tax_totals': tax_totals,
             # Campos CFDI (como ADD module)
             'l10n_mx_edi_usage': cfdi_data.uso_cfdi or False,
-            'l10n_mx_edi_payment_policy': cfdi_data.metodo_pago or False,
             'l10n_mx_edi_cfdi_uuid_cusom': cfdi_data.uuid or False,
             'l10n_mx_edi_cfdi_origin': cfdi_data.cfdi_origin or False,
         }
